@@ -15,7 +15,7 @@ Example IDs:
 ## Accessing Data
 To access the experimental data associated with each ID:
 1. Navigate to the designated Google Drive folder (link provided below).
-2. Locate the folder corresponding to the experiment ID of interest (e.g., RAR001 for the first experiment).
+2. Locate the folder corresponding to the experiment ID of interest in the processed data (e.g., RAR001 for the first experiment).
 3. Inside each folder, you will find the raw data, processed data, and any supplementary materials relevant to the experiment.
 
 [Google Drive Folder Link](#)
@@ -34,6 +34,20 @@ To replicate the analyses or explore the data:
 3. Download the relevant datasets from the Google Drive as per the instructions in the "Accessing Data" section.
 4. Run the scripts in the `/code` directory corresponding to the experiment ID you are interested in. Detailed usage instructions for each script are provided within the script files themselves.
 
+## Structure
+/code
+│
+├── /RAR001
+│   ├── /Fig1_A_B_C
+│   │   ├── RAR001_Fig1_A_B_C.R
+│   │   └── README.md  # Describes the specific analysis, how to run scripts, and expected outputs
+│   │
+│   ├── /Fig_Sup4_G_H
+│   │   ├── RAR001_Fig_Sup4_G_H.py
+│   │   └── README.md  # Describes this specific analysis, usage, and outputs
+├── /RAR002
+│   ├── /Fig2_B_D
+...
 
 ## License
 This project is licensed under MIT License.
