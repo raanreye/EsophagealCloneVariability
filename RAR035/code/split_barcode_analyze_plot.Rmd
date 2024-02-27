@@ -1,0 +1,19 @@
+---
+title: "Split_barcode"
+author: "Raul A. Reyes Hueros"
+date: "10/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library("reshape")
+library("ggplot2")
+```
+
+
+```{r}
+temp <- list.files(path='/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/',recursive = T, pattern='*.txt', full.names = TRUE)
+myfiles <- lapply(temp, read.delim)
+list_names <- list.files(path='/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/')
+names(myfiles) <- list_names
+```

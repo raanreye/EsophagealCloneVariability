@@ -1,0 +1,69 @@
+{
+	//This .json file will contain all the paths and variables to run the functions in this pipeline
+
+    //              Paths
+
+	//Path to BarcodeAnalysis folder
+    "scripts": "/Users/raul/Documents/GitHub/BarcodeAnalysis",
+
+		//Folder that contains all folders containing FASTQ files generated from sequencing the 10x barcodes
+		//If you do not have corresponding 10x sample, leave empty ("").
+    "Fastqfolder10x": "",
+
+    //Folder that contains all folders containing gDNA FASTQ files generated from sequencing the barcodes.
+    //If you do not have corresponding gDNA sample, leave empty ("").
+    "FastqfoldergDNA": "/Volumes/Super_cells/BarcodePipeline_TestData/test_gDNA_fastqs",
+
+    //Folder you want outputs go go into (dont make this folder, this scipt will make it)
+    "Outfolder": "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/split_barcode/output",
+
+    //            Variables
+    //Determine whether the data has barcodes from 10x ("10x"), gDNA ("gDNA"), or both "both"
+    "barcodeSource" : "gDNA",
+
+    //common sequence right before starcode starts
+    "strtseq": "GCTGTACAAGTAGGAT",
+    "strtseq_revcomp": "ATCCTACTTGTACAGC",
+
+    //length to keep from sequenced barcode (this is actual bacode, does not include strt seq above)
+    "bclen": 70,
+
+    //allowed number of mismatches between barcodes to be called the same (max value is 8)(starcode input)
+    "sc_mm": 8,
+
+    //The percentage match you for startseq to be called as correct in a barcode
+    "startseqMatch": 100,
+
+    //Number of barcodes to use to calculate Levenshtein Distance (2 random samplings are taken)
+    "num_of_barcodes_to_use": 500,
+
+    //		     Sample names
+    //Define which samples should be run together in starcode (any samples that could contain cells from the same lineage should be grouped together in a list within the GSAMP list)
+	//EXAMPLE: if you have samples : s1,s2,s3, and s4  and they all share lineage barcode enter [["s1","s2","s3","s4"]] if none should share lineages enter [["s1"],["s2"],["s3"],["s4"]]
+	//if s1 and s2 share lineage barcodes but none of the others do enter [["s1","s2"],["s3"],["s4"]]
+	//NOTE: names used here should match the names that will be assinged to samples in line 229 and 250 in the step3.py script (should be everything before lane (_L0))
+	"GSAMP":[["RAR2","RAR2_1","RAR2_1"],["RAR3","RAR3_1","RAR3_1"]],
+
+
+    //              Spike-in
+    // Does you sample contain Spike-ins?
+    // "yes" = Spike-ins added "no" = Spike-ins not added
+    "spike_in_added": "yes",
+    // If "yes" fill out 'spike_in_seqs','spike_in_value' and 'spike_in_color'
+    // If "no" ignore 'spike_in_seqs','spike_in_value' and 'spike_in_color'
+
+    // The order of 'spike_in_seqs' has to match 'spike_in_value' and what ever color you picked for 'spike_in_color'
+
+    // Sequence of known spike-ins without startseq
+    "spike_in_seqs": ["TGGAGGTGAAGCTCCAGTTGCAGATCGACGACTAGGTCAAGATGAACTTCGAGCACTTGGACCTCCACGT",//1000
+                      "ATTCATGTTCTTGAAGGACATGATGGTGTTCTTGTACCTGTTGTACTACGACCTCATGATCGTCATCAAG",//1000
+                      "AGTTCGTCTACCTCATCTTGATGATGTTCAAGTAGGACGACGAGTAGCTCTACCAGGTGCAGATCGTGCA",//500
+                      "TGTAGATCTAGCTGATGTACGTGATCTTGGACATCTTCTTCATCCACCTCTTGATGAAGTACTACTTCAA",//500
+                      "ACCTGTAGATGTTCATGCTGTTCGAGTTGATGTTCTTGTTGCACAAGCACTACATGCTGTTGTACTTGGT",//50
+                      "ACCTCCTGGTGCTGTACATGCTCTAGATCTACGTGTTCTTGTAGCTCTTCGTGTACATGCTGGTGGAGAT"],//50
+    // Number of cells added per spike-in
+    "spike_in_value": [1000,1000,500,500,50,50],
+    // Color assigned to each spike-in
+    "spike_in_color": ["r","r","y","y","b","b"],
+
+}

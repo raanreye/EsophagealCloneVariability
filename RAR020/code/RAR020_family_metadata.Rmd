@@ -1,0 +1,2206 @@
+---
+title: "family_metadata"
+output: html_document
+---
+
+import necessary pacakges
+```{r,echo=FALSE}
+#using Seurat version 3.2.2
+library(qlcMatrix)
+library(Seurat)
+library(ggplot2)
+library(RColorBrewer)
+#library(sleepwalk) # a euclidean distance heat map on UMAP
+
+```
+
+Load in scRNA data
+```{r}
+tx<-readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/sample1_R/210507_RAR020_str10xBarcodes_both_samples.rds")
+```
+
+Load in lineage info and metadata calculated in python (20210721_RAR020_family_metadata)
+```{r}
+
+family_fullID_trusted_path <- "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/files_family_metadata/Step2/20210723_family_fullID_trusted.csv"
+
+family_fullID_path <- "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/files_family_metadata/Step2/20210723_family_fullID.csv"
+
+family_fullID_equal_path <- "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/files_family_metadata/Step2/20210723_family_fullID_equal.csv"
+
+family_fullID_fifty_percent_path <- "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/files_family_metadata/Step2/20210723_family_fullID_fifty_percent.csv"
+
+family_fullID_trusted <- read.table(family_fullID_trusted_path,header= FALSE)
+family_fullID <- read.table(family_fullID_path,header= FALSE)
+family_fullID_equal <- read.table(family_fullID_fifty_percent_path,header= FALSE)
+family_fullID_fifty_percent <- read.table(family_fullID_fifty_percent_path,header= FALSE)
+
+# fix how its being imported
+family_fullID_trusted <- as.integer(strsplit(family_fullID_trusted$V1, ",")[[1]])
+family_fullID <- as.integer(strsplit(family_fullID$V1, ",")[[1]])
+family_fullID_equal <- as.integer(strsplit(family_fullID_equal$V1, ",")[[1]])
+family_fullID_fifty_percent <- as.integer(strsplit(family_fullID_fifty_percent$V1, ",")[[1]])
+
+```
+
+```{r}
+barcodes_in_cell_keep_path = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/files_family_metadata/Step2/20210723_barcodes_in_cell_keep.csv"
+
+
+barcodes_in_cell_keep <- read.table(barcodes_in_cell_keep_path,header= FALSE)
+
+# fix how its being imported
+barcodes_in_cell_keep <- as.integer(strsplit(barcodes_in_cell_keep$V1, ",")[[1]])
+
+```
+
+```{r}
+df_path <- "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/files_family_metadata/Step2/20210723_df.csv"
+
+df_fam  <- read.csv(df_path)
+```
+
+# fix naming
+```{r}
+names_ <- colnames(df_fam)
+keep_names <- c()
+for (name in names_){
+  keep_names <- c(keep_names,paste(substr(name,1,nchar(name)-2) ,"-1", sep=""))
+}
+colnames(df_fam) <- keep_names
+
+drops <- c("-1")
+df_fam <- df_fam[ , !(colnames(df_fam) %in% drops)]
+
+#colnames(df_fam) <- colnames(tx)
+```
+
+Get Cells to use
+```{r}
+#determine which cells have 1 bc
+obc <- colnames(df_fam)[colSums(df_fam) == 1 & barcodes_in_cell_keep > 0]  #& barcodes_in_cell_keep == 2]
+  #which(colSums(df_fam) == 1) ]# & barcodes_in_cell_keep == 2]
+paste("obc = ", length(obc))
+paste("percent = ", 100*length(obc)/length(df_fam))
+```
+
+```{r}
+names_ <- colnames(tx)#obc
+keep_names <- c()
+for (name in names_){
+  keep_names <- c(keep_names,paste(substr(name,1,nchar(name)-19), sep=""))
+}
+
+sum(keep_names %in% "S1")
+sum(keep_names %in% "S2")
+
+```
+
+
+What family metadata size to use
+```{r}
+# family_fullID  <- family_fullID[which(colSums(df_fam) == 1)]
+# family_fullID_equal  <- family_fullID_equal[which(colSums(df_fam) == 1)]
+# family_fullID_fifty_percent  <- family_fullID_fifty_percent[which(colSums(df_fam) == 1)]
+```
+
+
+Concatinate scRNA data
+```{r}
+
+# add filtered lineage data to seurat object
+tx[['flineage']] <- CreateAssayObject(counts = df_fam)
+
+# familly length
+
+umap_family_fullID_trusted <- df_fam[1,]*NaN
+umap_family_fullID_trusted[1,] <- family_fullID_trusted
+
+umap_family_fullID <- df_fam[1,]*NaN
+umap_family_fullID[1,] <- family_fullID
+
+umap_family_fullID_equal <- df_fam[1,]*NaN
+umap_family_fullID_equal[1,] <- family_fullID_equal
+
+umap_family_fullID_fifty_percent <- df_fam[1,]*NaN
+umap_family_fullID_fifty_percent[1,] <- family_fullID_fifty_percent
+
+umap_rna_count <- df_fam[1,]*NaN
+umap_rna_count[1,] <- as.vector(tx$nCount_RNA)
+
+umap_rna_features <- df_fam[1,]*NaN
+umap_rna_features[1,] <- as.vector(tx$nFeature_RNA)
+
+tx[['length_family_fullID_trusted']] <- CreateAssayObject(counts = umap_family_fullID_trusted)
+tx[['length_family_fullID']] <- CreateAssayObject(counts = umap_family_fullID)
+tx[['length_family_fullID_equal']] <- CreateAssayObject(counts = umap_family_fullID_equal)
+tx[['length_family_fullID_fifty_percent']] <- CreateAssayObject(counts = umap_family_fullID_fifty_percent)
+tx[['rna_count']] <- CreateAssayObject(counts = umap_rna_count)
+tx[['rna_feature']] <- CreateAssayObject(counts = umap_rna_features)
+
+# Create family lineage 
+clin<-c()
+name <- rownames(df_fam)
+
+for (i in 1:ncol(df_fam)) {
+  hold <- which(df_fam[,i] > 0)
+  if (length(hold) == 0){
+    clin    <- append(clin, NaN) # no lineage
+  }else{
+    clin    <- append(clin, name[hold] )
+  }
+ 
+}
+
+tx$lin <- clin
+
+tx$family_fullID_trusted <- family_fullID_trusted
+tx$family_fullID <- family_fullID
+tx$family_fullID_equal <- family_fullID_equal
+tx$family_fullID_fifty_percent <- family_fullID_fifty_percent
+
+
+```
+
+
+```{r}
+#remove cells that don't have a bc
+txl<-subset(tx, cells = obc) #
+
+#colnames(tx)[!(colnames(tx) %in% obc)]
+```
+
+
+
+
+```{r}
+txl <- FindVariableFeatures(txl, selection.method = "vst", nfeatures = 2000)
+
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(txl), 20)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(txl)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot2
+```
+
+Run UMAP
+```{r, fig.height=5, fig.width=7}
+
+txl <- RunPCA(object = txl)
+txl <- FindNeighbors(object = txl, dims = c(1:20))
+txl <- FindClusters(object = txl, resolution = .5)
+txl <- RunUMAP(object = txl, dims = c(1:20))
+```
+
+```{r}
+DimPlot(txl, reduction = "umap",
+         # group.by = 'S1', pt.size = .1)
+          group.by = 'seurat_clusters', pt.size = .1)
+```
+
+
+```{r}
+DefaultAssay(object = txl) <- "RNA"
+
+#Plot gene expression
+FeaturePlot(object = txl, reduction = 'umap',
+            features = c("MKI67","FN1","KRT14","KRT5","KRT10","KRT4","KRTDAP","KRT13"),
+            pt.size = .1, combine = FALSE, order = TRUE,
+            min.cutoff = 0, max.cutoff = 5)
+
+FeaturePlot(object = txl, reduction = 'umap',
+            features = c("MKI67","FN1","KRT14","KRT5","KRT10","KRT4","KRTDAP","KRT13","EGFR"),
+            pt.size = .1, combine = FALSE, order = TRUE)
+            #min.cutoff = 0, max.cutoff = 2)
+
+
+ FeaturePlot(object = txl, reduction = 'umap',
+             features = c("MKI67","KRT14","KRT4","SOX2","KLF4"),
+             pt.size = .1, combine = FALSE, order = TRUE, cols = c("grey", "blue","red"))
+```
+
+```{r}
+txl <- CellCycleScoring(object = txl, g2m.features = cc.genes$g2m.genes, s.features = cc.genes$s.genes)
+```
+
+DimPlot(txl, reduction = "umap",dims = c(1,2), group.by = 'Phase', pt.size = 0.1)
+
+
+
+```{r}
+
+DefaultAssay(object = txl) <- "rna_count"
+FeaturePlot(object = txl,
+                          features = "nCount_rna_count",
+                          pt.size = .1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("grey","red")) & 
+  scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu"))) 
+
+DefaultAssay(object = txl) <- "rna_feature"
+FeaturePlot(object = txl,
+                          features = "nCount_rna_feature",
+                          pt.size = .1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("grey","red")) & 
+  scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu"))) 
+```
+
+Plot
+```{r}
+
+DefaultAssay(object = txl) <- "length_family_fullID_trusted"
+FeaturePlot(object = txl,
+                          features = "nCount_length_family_fullID_trusted",
+                          pt.size = .1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("grey","red")) & 
+  scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu"))) 
+
+
+DefaultAssay(object = txl) <- "length_family_fullID"
+FeaturePlot(object = txl,
+                          features = "nCount_length_family_fullID",
+                          pt.size = .1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("grey","red")) & 
+  scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu"))) 
+
+
+DefaultAssay(object = txl) <- "length_family_fullID_equal"
+FeaturePlot(object = txl,
+                          features = "nCount_length_family_fullID_equal",
+                          pt.size = .1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("grey","red")) & 
+  scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu"))) 
+
+
+
+DefaultAssay(object = txl) <- "length_family_fullID_fifty_percent"
+FeaturePlot(object = txl,
+                          features = "nCount_length_family_fullID_fifty_percent",
+                          pt.size = .1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("green","red")) & 
+  scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu"))) 
+
+DefaultAssay(object = txl) <- "length_family_fullID_fifty_percent"
+FeaturePlot(object = txl,
+                          features = "nCount_length_family_fullID_fifty_percent",
+                          pt.size = .1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("green","red")) & 
+  scale_colour_gradientn(colours = c("red","red","red","lightblue","darkblue"),
+                         values = c(1.0,0.8,0.6,0.4,0.2,0)) 
+```
+
+
+```{r}
+pdf(file = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Illustrator/Plots/202109_fig2_Phase.pdf")
+
+Idents(txl)<-txl$Phase
+DimPlot(txl)
+
+dev.off()
+```
+
+Get percent of familes by size cut off
+```{r}
+name <- colnames(txl)
+
+lin_family_cutoff <- c()
+x_range <- 1:max(txl$nCount_length_family_fullID_equal)
+
+percent_wanted <- 12
+
+for (i in x_range){
+  lin_family_cutoff <- append(lin_family_cutoff,
+                              100*sum(txl$nCount_length_family_fullID_equal >= i)/length(txl$nCount_length_family_fullID_equal) )
+}
+
+
+mid_val <- which(lin_family_cutoff<= c(50 + percent_wanted/2) & lin_family_cutoff >= c(50 - percent_wanted/2) )
+
+paste(" Cut-off to get biggest lin " , percent_wanted   ,"%    = ",min(x_range[lin_family_cutoff<=percent_wanted]))
+paste(" Cut-off to get mid lin " , percent_wanted   ,"%    = ",mid_val[1], "  &  " ,mid_val[2])
+paste(" Cut-off to get smalles lin " , percent_wanted   ,"%    = ",max(x_range[lin_family_cutoff>=c(100-percent_wanted)]))
+
+plot(x_range, lin_family_cutoff,
+     main="Percent of familes by size cut-off",
+     xlab="Cut-off [family size]",
+     ylab="Percent of families after cut-off")
+
+find_big_threshold <- which(lin_family_cutoff<=percent_wanted)[1]
+find_small_threshold <- which(lin_family_cutoff<=c(100-percent_wanted))[1]
+
+
+find_mid_threshold <- c(min(mid_val),max(mid_val))
+
+
+
+points(x_range[find_big_threshold],
+       lin_family_cutoff[find_big_threshold],
+       col="green")
+
+points(x_range[find_small_threshold],
+       lin_family_cutoff[find_small_threshold],
+       col="red")
+
+
+lines(c(find_big_threshold,find_big_threshold),c(0,100),col = "green")
+
+lines(c(find_small_threshold,find_small_threshold),c(0,100),col = "red")
+
+lines(c(find_mid_threshold[1],find_mid_threshold[1]),c(0,100),col = "blue")
+lines(c(find_mid_threshold[2],find_mid_threshold[2]),c(0,100),col = "blue")
+
+legend(90, 95, legend=c("small", "mid","big"),
+       col=c("red", "blue","green"), lty=1:2, cex=0.8)
+
+
+
+```
+
+
+Plot large and small colonies
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/large_colonies.pdf")
+
+get_colonies <- table(txl$lin)
+get_colonies_name <- rownames(get_colonies)
+
+
+plot.list <- c()
+cnt <- 0                                                                                                                                                                                            
+for (i in unique(txl$lin[as.vector(txl$nCount_length_family_fullID_equal >= 80)] ) ){
+  cnt <- 1 + cnt
+  #lable major clusters
+  txl$lin_example <- as.character(txl$seurat_clusters)
+  
+  txl$lin_example[txl$lin == i] <- "Yes"
+  
+  txl$lin_example[txl$lin_example != "Yes"] <- "No"
+  
+   plot.list[[cnt]] <- DimPlot(txl, group.by = "lin_example", pt.size = 1,
+        order = c("Yes","No"))+
+  scale_color_manual(values = c("grey","darkblue"))+
+  labs(color = paste("Colony ID" , as.character(i), " size", as.character(get_colonies[i])) )
+  
+}
+plot.list
+
+dev.off()
+
+
+```
+
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/small_colonies.pdf")
+
+get_colonies <- table(txl$lin)
+get_colonies_name <- rownames(get_colonies)
+
+
+plot.list <- c()
+cnt <- 0                                                                                                                                                                                            
+for (i in c('2480', '2475', '2137', '2048', '2018', '181','315', '406') ){
+  cnt <- 1 + cnt
+  #lable major clusters
+  txl$lin_example <- as.character(txl$seurat_clusters)
+  
+  txl$lin_example[txl$lin == i] <- "Yes"
+  
+  txl$lin_example[txl$lin_example != "Yes"] <- "No"
+  
+   plot.list[[cnt]] <- DimPlot(txl, group.by = "lin_example", pt.size = 1,
+        order = c("Yes","No"))+
+  scale_color_manual(values = c("grey","darkblue"))+
+  labs(color = paste("Colony ID" , as.character(i), " size", as.character(get_colonies[i])) )
+  
+}
+plot.list
+
+dev.off()
+
+
+```
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/Phase.pdf")
+
+DimPlot(txl, group.by = "Phase", pt.size = 1)
+
+dev.off()
+
+```
+
+
+
+```{r}
+library(SeuratWrappers)
+library(tricycle)
+library(org.Mm.eg.db)
+```
+
+```{r}
+DefaultAssay(txl) <- "RNA"
+txl <- Runtricycle(object = txl, slot = "data", reduction.name = "tricycleEmbedding", 
+    reduction.key = "tricycleEmbedding_", gname = NULL, gname.type = "SYMBOL", species = "human")
+
+plot.df <- FetchData(object = txl, vars = c("UMAP_1", "UMAP_2", 
+    "tricyclePosition", "ENSMUSG00000020914"))
+#names(plot.df)[4] <- "Top2a"
+library(ggplot2)
+library(cowplot)
+p <- tricycle:::.plot_emb_circle_scale(emb.m = plot.df[, 1:2], color.value = plot.df$tricyclePosition, 
+    color_by = "tricyclePosition", point.size = 1, point.alpha = 0.9)
+legend <- circle_scale_legend(text.size = 5, alpha = 0.9)
+
+
+
+pdf(file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/Phase.pdf")
+
+plot_grid(p, legend, ncol = 2, rel_widths = c(1, 0.4))
+dev.off()
+
+
+FeaturePlot(txl, features = c("tricyclePosition"))
+
+
+#approximately relate 0.5pi to be the start of S stage, 
+#pi to be the start of G2M stage, 
+#1.5pi to be the middle of M stage
+#1.75pi-0.25pi to be G1/G0 stage.
+```
+
+
+
+```{r}
+#pdf(file = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Illustrator/Plots/202109_fig2_expanding.pdf")
+
+#find_big_threshold 
+#find_small_threshold 
+find_small_threshold = 7
+
+name_small <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold )] #small
+name_mid <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal > find_mid_threshold[1] & 
+                                      txl$nCount_length_family_fullID_equal < find_mid_threshold[2])]   #mid
+name_big <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold )]   #big
+
+ #lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+
+#txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold)] <- "small"
+
+#txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal > find_mid_threshold[1] & 
+#                                      txl$nCount_length_family_fullID_equal < find_mid_threshold[2])] <- "mid"
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold)] <- "expanding"
+
+txl$clusterID[#txl$clusterID != "small" &
+                #txl$clusterID != "mid" &
+                txl$clusterID != "expanding"] <- "other"
+
+
+DimPlot(txl, group.by = "clusterID", pt.size = 1,
+        order = c("expanding","small","other"))+
+  scale_color_manual(values = c("grey","#c97404","#fad105" ))+
+  labs(color = "Colony Size")
+
+#txl$clusterID[txl$clusterID != "expanding"] <- "other"
+
+DimPlot(txl, group.by = "clusterID", pt.size = 1,
+        order = c("expanding","other"))+
+  scale_color_manual(values = c("grey","#fad105" ))+
+  labs(color = "Colony Size")
+
+#dev.off()
+```
+
+
+```{r}
+# Volcano plots
+
+expanding <- rowMeans(txl[,txl$clusterID == 'expanding'])
+other <- rowMeans(txl[,txl$clusterID == 'other'])##'non_expanding'])
+```
+
+
+```{r}
+# Volcano plots
+
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+big_small <- FindMarkers(object = txl, ident.1 = "expanding", ident.2 = "non_expanding",
+                        logfc.threshold = 0.1,
+                        only.pos = FALSE
+                        )
+big_other <- big_small
+```
+
+```{r}
+ggplot(data=big_other , aes(x=avg_log2FC, y=p_val)) + geom_point()
+
+log_p_value <- 0.05#5e-100#
+
+log2FC <- 0.4
+
+# add a column of NAs
+big_other$diffexpressed <- "NO"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" 
+big_other$diffexpressed[big_other$avg_log2FC > log2FC & big_other$p_val < log_p_value] <- 'UP'
+
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN"
+big_other$diffexpressed[big_other$avg_log2FC < -log2FC & big_other$p_val < log_p_value] <- 'DOWN'
+
+p <- ggplot(data=big_other, aes(x=avg_log2FC, y=-log10(p_val), col=diffexpressed, label=diffexpressed)) + 
+    geom_point() + 
+    theme_minimal()
+  
+  # Add lines as before...
+p2 <- p + geom_vline(xintercept=c(-log2FC, log2FC), col="red") +
+        geom_hline(yintercept=-log10(log_p_value), col="red")
+
+## Change point color 
+
+# 1. by default, it is assigned to the categories in an alphabetical order):
+p3 <- p2 + scale_color_manual(values=c("blue", "black", "red"))
+
+# 2. to automate a bit: ceate a named vector: the values are the colors to be used, the names are the categories they will be assigned to:
+mycolors <- c("blue", "red", "black")
+names(mycolors) <- c("DOWN", "UP", "NO")
+p3 <- p2 + scale_colour_manual(values = mycolors)
+
+
+# Now write down the name of genes beside the points...
+# Create a new column "delabel" to de, that will contain the name of genes differentially expressed (NA in case they are not)
+
+genes <- c('NUPR1','FTH1','GJB6','KRT14','NEAT1', #mid
+           'PSMA7','DKK1','KI67','KRT18','MKI67','KRT16','CALML3')
+
+genes <- c("SFRP1",'EIF6','PSMA7','DKK1','FOXM1','AXL','SNX5','MKI67','YWHAB','PPDPF',
+           'NUPR1','TMSB4X','NEAT1','FTH1','GJB6','CALML3','KRT14','KRT5','SQSTM1','AKR1C1')
+
+big_other$delabel <- NA
+#big_other$delabel[big_other$diffexpressed != "NO"] <- rownames(big_other)[big_other$diffexpressed != "NO"]# rownames(big_other)[big_other$diffexpressed != "NO"& rownames(big_other) %in% genes] 
+big_other$delabel[big_other$diffexpressed != "NO"& rownames(big_other) %in% genes] <- rownames(big_other)[big_other$diffexpressed != "NO" & rownames(big_other) %in% genes]
+                  #& rownames(big_other) %in% genes] <- rownames(big_other)[big_other$diffexpressed != "NO" & rownames(big_other) %in% genes]
+                  
+                  #
+  
+  #
+
+
+#genes_clustered <- c("NUPR1","KRT14","DKK1",'NEAT1','SFRP1','PSMA7')
+
+#big_other$p_val[ rownames(big_other)  %in% genes_clustered] <- big_other$p_val[rownames(big_other)  %in% genes_clustered]+4e-303
+
+#big_other <- big_other[!is.infinite(big_other$avg_log2FC),]
+
+big_other$log_p_val <- log10(big_other$p_val) #+ 0.001
+
+# Finally, we can organize the labels nicely using the "ggrepel" package and the geom_text_repel() function
+# load library
+library(ggrepel)
+# plot adding up all layers we have seen so far
+#pdf(file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/volcano.pdf")
+
+ggplot(data=big_other, aes(x=avg_log2FC, y=-log_p_val, col=diffexpressed, label=delabel)) +
+        geom_point() + 
+        theme_minimal() +
+        geom_text_repel(max.overlaps = 100) +
+        scale_color_manual(values=c("#137dd4", "black", "#3b9421" ))+#"blue", "black", "red")) +
+        geom_vline(xintercept=c(-log2FC, log2FC), col="red",alpha = 0.4) +
+        geom_hline(yintercept=-log10(log_p_value), col="red",alpha = 0.4) 
+        #xlim(-.6, .6)+ylim(-5,160)#+ scale_y_continuous(trans='log10')
+
+#dev.off() #/Users/raul/Desktop/hits_up_and_down.csv
+
+#write.csv(big_other, "/Users/raul/Desktop/hits_using_barcodes.csv.csv")
+```
+
+```{r}
+
+write.csv(big_other %>% top_n(n = 100, wt = avg_log2FC), file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/outputs/tables/table_S2.csv")
+
+```
+
+```{r}
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+#identify differentially expressed genes
+big_mid <- FindMarkers(object = txl, ident.1 = 'expanding', ident.2 = 'small')
+
+x <- rownames(big_mid)[order(big_mid$p_val,big_mid$pct.2)]
+x <- x[1:50]
+genes <- c(x)
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE)
+            #min.cutoff = 0, max.cutoff = 2)
+```
+
+```{r}
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+#identify differentially expressed genes
+big_mid <- FindMarkers(object = txl, ident.1 = 'expanding', ident.2 = 'other',only.pos =TRUE)
+
+x <- rownames(big_mid)[order(big_mid$p_val,big_mid$pct.2)]
+x <- x[1:250]
+genes <- c(x)
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE)
+            #min.cutoff = 0, max.cutoff = 2)
+```
+
+
+
+```{r}
+
+genes <- c('ANGPTL4','TUBA1A','FN1','TMSB4X','FTH1','S100A2','FBXO2','SAT1','MANCR','TXNDC17','MIF','GJB6', #small
+           'PSMA7','SNRPB','HMGN2','DEK','ANP32B','FIF2S2','PCNA','NCL','YWHAB')
+
+cells_plot <- colnames(txl)[txl$clusterID == "expanding" | txl$clusterID == "small"]#| txl$clusterID == "mid"]
+other_cell <- colnames(txl)[txl$clusterID == "other"]
+cells_plot <- append(cells_plot, other_cell[1:500])
+#levels(txl)[1] <- c('small','big','other')
+
+DoHeatmap(txl, features = genes, cells_plot,
+          group.by = "clusterID",group.colors  = c("#fad105","#fa9405","grey")) 
+
+
+
+```
+
+```{r}
+
+#pdf(file = "/Users/raul/Desktop/expanding.pdf")
+
+#lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+
+FeaturePlot(txl, features = c("NUPR1","CALML3","KLK5","GJB6"))
+combine_genes <- c(as.vector(txl@assays$RNA["NUPR1",] >= 1) |
+                     as.vector(txl@assays$RNA["KLK5",] >= 1) |
+                as.vector(txl@assays$RNA["GJB6",] >= 1) |
+                as.vector(txl@assays$RNA["PLIN2",] >= 1) |
+                as.vector(txl@assays$RNA["CALML3",] >= 1))
+
+#FeaturePlot(txl, features = c("SFRP1",'DGAT1','DKK1','LNCAROD'))
+#FeaturePlot(txl, features = c("PLIN2",'DGAT1','NEAT1','CRBN'))
+
+
+combine_genes_g <- c(as.vector(txl@assays$RNA["DKK1",] >= 1.4) |
+                     as.vector(txl@assays$RNA["SFRP1",] >= 1.4) |
+                as.vector(txl@assays$RNA['EIF6',] >= 2.2))
+
+#combine_genes_g <- c(as.vector(txl@assays$RNA["DKK1",] >= 2) |
+#                     as.vector(txl@assays$RNA["SFRP1",] >= 1.2))
+
+txl$clusterID[combine_genes] <- "non_expanding"
+
+#txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= 55)] <- "expanding"
+txl$clusterID[combine_genes_g] <- "expanding"
+
+txl$clusterID[txl$clusterID != "expanding"&
+                txl$clusterID != "non_expanding"] <- "other"
+
+
+DimPlot(txl, group.by = "clusterID", pt.size = 1,
+        order = c("expanding","non_expanding","other"))+
+  scale_color_manual(values = c("grey","darkblue","#fad105"))+
+  labs(color = "Colony Size")
+
+#dev.off()
+```
+
+
+```{r}
+pdf(file = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Illustrator/Plots/202109_fig2_box.pdf")
+
+size_exp <- c()
+size_non <- c()
+size_other <- c()
+
+for (i in unique(txl$lin)){
+  index <- c(i == txl$lin)
+  name_look <- txl$clusterID[index][1]
+  
+  #expanding
+  if (name_look == "expanding"){
+    size_exp <- append(size_exp,txl$family_fullID_equal[index][1])
+  } else if (name_look == "non_expanding"){ #non-expanding
+    size_non <- append(size_non,txl$family_fullID_equal[index][1])
+  } else if (name_look == "other"){ #other 
+    size_other <- append(size_other,txl$family_fullID_equal[index][1])
+  }
+  
+}
+
+s_exp <- rep("exp", length(size_exp))
+s_non <- rep("non", length(size_non))
+s_other <- rep("other", length(size_other))
+  
+rar <- data.frame("count"= c(size_exp, size_non,size_other),"name"= c(s_exp,s_non,s_other) )
+
+
+ggplot(rar, aes(y=count,
+                    x = name,
+                color = name)) + 
+  geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE)
+
+dev.off()
+```
+
+```{r}
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/representative_clones/boxplotsize.pdf")
+
+size_exp <- c()
+size_non <- c()
+
+for (i in unique(txl$lin)){
+  index <- c(i == txl$lin)
+  name_look <- txl$seurat_clusters_highless[index][1]
+  
+  #expanding
+  if (name_look == "Highly Proliferative"){
+    size_exp <- append(size_exp,txl$family_fullID_equal[index][1])#
+  } else if (name_look == "Less Proliferative"){ #non-expanding
+    size_non <- append(size_non,txl$family_fullID_equal[index][1])
+  }
+  
+}
+
+s_exp <- rep("exp", length(size_exp))
+s_non <- rep("non", length(size_non))
+  
+rar <- data.frame("count"= c(size_exp, size_non),"name"= c(s_exp,s_non) )
+
+
+ggplot(rar, aes(y=count,
+                    x = name,
+                color = name)) + 
+  geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE)+ ggtitle("Seurat clusters")
+
+
+#10% highly
+size_exp <- c()
+size_non <- c()
+
+for (i in unique(txl$lin)){
+  index <- c(i == txl$lin)
+  name_look <- txl$clusterID[index][1]
+  
+  #expanding
+  if (name_look == "Highly"){
+    size_exp <- append(size_exp,txl$family_fullID_equal[index][1])#
+  } else if (name_look == "Less"){ #non-expanding
+    size_non <- append(size_non,txl$family_fullID_equal[index][1])
+  }
+  
+}
+
+s_exp <- rep("exp", length(size_exp))
+s_non <- rep("non", length(size_non))
+  
+rar <- data.frame("count"= c(size_exp, size_non),"name"= c(s_exp,s_non) )
+
+
+ggplot(rar, aes(y=count,
+                    x = name,
+                color = name)) + 
+  geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE)+ ggtitle("Top 10% threshold")
+dev.off()
+```
+
+
+```{r}
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+#identify differentially expressed genes
+big_mid <- FindMarkers(object = txl, ident.1 = 'expanding', ident.2 = 'non_expanding',only.pos =TRUE)
+
+x <- rownames(big_mid)[order(big_mid$p_val,big_mid$pct.1)]
+x <- x[1:20]
+genes <- c(x)
+genes <- c("DKK1","SFRP1","IFI6","NUPR1","KLK5","GJB6","CALML3","PLIN2","KRT19",'NEAT1','KRT14','KRT4')
+
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE, cols = c("grey", "blue","red"))
+            #min.cutoff = 0, max.cutoff = 2)
+```
+
+
+
+```{r}
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+#identify differentially expressed genes
+big_mid <- FindMarkers(object = txl, ident.2 = 'expanding', ident.1 = 'non_expanding',only.pos =TRUE)
+
+x <- rownames(big_mid)[order(big_mid$p_val,big_mid$pct.1)]
+x <- x[1:50]
+genes <- c(x)
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE, cols = c("grey", "blue","red"))
+            #min.cutoff = 0, max.cutoff = 2)
+```
+
+```{r}
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+#identify differentially expressed genes
+big_mid <- FindMarkers(object = txl, ident.1 = 'expanding', ident.2 = 'non_expanding',only.pos =TRUE)
+
+x <- rownames(big_mid)[order(big_mid$p_val,big_mid$pct.1)]
+x <- x[1:20]
+genes <- c(x)
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE)
+            #min.cutoff = 0, max.cutoff = 2)
+```
+
+
+Determine most differentially expressed genes between pro-non-preliferative
+```{r}
+
+embeds = Embeddings(txl[["umap"]])
+
+
+#lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+
+txl$clusterID[  combine_genes &
+                embeds[,1] < 1.5] <- "non_expanding_grow"
+
+txl$clusterID[combine_genes &
+                embeds[,1] >= 1.5] <- "non_expanding_halt"
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold)  &
+                embeds[,1] < 1.5] <- "expanding_grow"
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold)  &
+                embeds[,1] >= 1.5] <- "expanding_halt"
+
+txl$clusterID[txl$clusterID != "expanding_grow"&
+                txl$clusterID != "expanding_halt" &
+                txl$clusterID != "non_expanding_grow" &
+                txl$clusterID != "non_expanding_halt"] <- "other"
+
+
+
+DimPlot(txl, group.by = "clusterID", pt.size = 1,
+        order = c("expanding_halt","expanding_grow","non_expanding_grow","non_expanding_halt","other"))+
+  scale_color_manual(values = c("grey","darkblue","lightblue","lightgreen","darkgreen"))+
+  labs(color = "Colony Size")
+```
+
+
+
+
+```{r}
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+#identify differentially expressed genes
+pro_non_markers <- FindMarkers(object = txl, ident.1 = 'expanding_grow', ident.2 = 'non_expanding_grow')
+write.csv(pro_non_markers %>% top_n(n = 50, wt = avg_log2FC), file = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/DGE/20210820_str_expanding_grow_vs_non_expanding_grow.csv")
+
+
+x <- rownames(big_mid)[order(big_mid$p_val,big_mid$pct.1)]
+x <- x[1:10]
+genes <- c(x)
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE)
+            #min.cutoff = 0, max.cutoff = 2)
+```
+
+
+
+```{r}
+
+genes <- c('ANGPTL4','FN1','MANCR')
+
+
+
+
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE)
+```
+
+
+
+
+
+CellphoneDB
+```{r}
+
+#find_big_threshold 
+#find_small_threshold 
+find_small_threshold = 8
+
+name_small <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold )] #small
+name_big <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold )]   #big
+
+embeds = Embeddings(txl[["umap"]])
+
+ #lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold)  &
+                embeds[,1] < 1.5] <- "small_grow"
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold)  &
+                embeds[,1] >= 1.5] <- "small_halt"
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold)  &
+                embeds[,1] < 1.5] <- "big_grow"
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold)  &
+                embeds[,1] >= 1.5] <- "big_halt"
+
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal > find_mid_threshold[1])  &
+                as.vector(txl$nCount_length_family_fullID_equal < find_mid_threshold[2])&
+                txl$clusterID != "small_grow"&
+                txl$clusterID != "big_grow"&
+                embeds[,1] < 1.5] <- "mid_grow"
+
+
+
+#---------
+
+txl$clusterID[ embeds[,1] < 1.5 &
+                txl$clusterID != "big_grow"] <- "non_grow"
+
+#---------
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal > find_mid_threshold[1])  &
+                as.vector(txl$nCount_length_family_fullID_equal < find_mid_threshold[2]) &
+                txl$clusterID != "small_halt"&
+                txl$clusterID != "big_halt"&
+                embeds[,1] >= 1.5] <- "mid_halt"
+
+
+txl$clusterID[txl$clusterID != "small_grow" &
+                txl$clusterID != "big_grow"&
+                txl$clusterID != "mid_grow" &
+                txl$clusterID != "small_halt" &
+                txl$clusterID != "big_halt" &
+                txl$clusterID != "mid_halt"] <- "other"
+
+
+
+
+
+DimPlot(txl, group.by = "clusterID", pt.size = 1,
+        order = c("big_halt","big_grow","small_halt","small_grow","mid_grow","mid_halt","other"))+
+  scale_color_manual(values = c("grey","darkblue","lightblue","lightgreen","darkgreen" , 'purple',"pink"))+
+  labs(color = "Colony Size")
+```
+
+
+
+```{r}
+DimPlot(txl, group.by = "clusterID", pt.size = .1)
+
+# Volcano plots
+
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+big_small <- FindMarkers(object = txl, ident.1 = "expanding", ident.2 = "non_expanding",#'non_expanding',
+                        logfc.threshold = 0.1,
+                        only.pos = FALSE
+                        )
+big_other <- big_small
+```
+
+```{r}
+ggplot(data=big_other , aes(x=avg_log2FC, y=p_val)) + geom_point()
+
+log_p_value <- 0.05#5e-100#
+
+log2FC <- 0.3
+
+# add a column of NAs
+big_other$diffexpressed <- "NO"
+# if log2Foldchange > 0.6 and pvalue < 0.05, set as "UP" 
+big_other$diffexpressed[big_other$avg_log2FC > log2FC & big_other$p_val < log_p_value] <- 'UP'
+
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN"
+big_other$diffexpressed[big_other$avg_log2FC < -log2FC & big_other$p_val < log_p_value] <- 'DOWN'
+
+p <- ggplot(data=big_other, aes(x=avg_log2FC, y=-log10(p_val), col=diffexpressed, label=diffexpressed)) + 
+    geom_point() + 
+    theme_minimal()
+  
+  # Add lines as before...
+p2 <- p + geom_vline(xintercept=c(-log2FC, log2FC), col="red") +
+        geom_hline(yintercept=-log10(log_p_value), col="red")
+
+## Change point color 
+
+# 1. by default, it is assigned to the categories in an alphabetical order):
+p3 <- p2 + scale_color_manual(values=c("blue", "black", "red"))
+
+# 2. to automate a bit: ceate a named vector: the values are the colors to be used, the names are the categories they will be assigned to:
+mycolors <- c("blue", "red", "black")
+names(mycolors) <- c("DOWN", "UP", "NO")
+p3 <- p2 + scale_colour_manual(values = mycolors)
+
+
+# Now write down the name of genes beside the points...
+# Create a new column "delabel" to de, that will contain the name of genes differentially expressed (NA in case they are not)
+
+genes <- c('NUPR1','FTH1','GJB6','KRT14','NEAT1', #mid
+           'PSMA7','DKK1','KI67','KRT18','MKI67','KRT16','CALML3')
+
+big_other$delabel <- NA
+big_other$delabel[big_other$diffexpressed != "NO"& rownames(big_other) %in% genes] <- rownames(big_other)[big_other$diffexpressed != "NO" & rownames(big_other) %in% genes]
+#big_other$delabel[big_other$diffexpressed != "NO"] <- rownames(big_other)[big_other$diffexpressed != "NO"]
+
+genes_clustered <- c("NUPR1","GJB6","DKK1",'NEAT1','GJB2','KRT14','KRT18','FTH1','S100A2')
+
+#big_other$delabel[rownames(big_other)  %in% genes_clustered] <- rownames(big_other)[rownames(big_other)  %in% genes_clustered]
+  
+
+big_other$p_val[ rownames(big_other)  %in% genes] <- big_other$p_val[rownames(big_other)  %in% genes]+4e-303
+
+big_other <- big_other[!is.infinite(big_other$avg_log2FC),]
+
+big_other$log_p_val <- log10(big_other$p_val) #+ 0.001
+
+# Finally, we can organize the labels nicely using the "ggrepel" package and the geom_text_repel() function
+# load library
+library(ggrepel)
+# plot adding up all layers we have seen so far
+#pdf(file = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Illustrator/Plots/volcano_expanding_nonexpanding.pdf")
+
+ggplot(data=big_other, aes(x=avg_log2FC, y=-log_p_val, col=diffexpressed, label=rownames(big_other))) +
+        geom_point() + 
+        theme_minimal() +
+        geom_text_repel(max.overlaps = 20) +
+        scale_color_manual(values=c("blue", "black", "red")) +
+        geom_vline(xintercept=c(-log2FC, log2FC), col="red",alpha = 0.4) +
+        geom_hline(yintercept=-log10(log_p_value), col="red",alpha = 0.4)+ 
+        xlim(-.6, .6)+ylim(-5,160)#+ scale_y_continuous(trans='log10')
+
+#dev.off() /Users/raul/Desktop/hits_up_and_down.csv
+
+#write.csv(big_other, "/Users/raul/Desktop/hits_using_cut_umap.csv")
+```
+
+
+
+
+
+
+CellphoneDB
+-------------------------------------------------------------------
+```{r}
+cells_for_cellphonedb <- colnames(txl)[txl$clusterID == "small_grow" |
+                                        txl$clusterID == "big_grow"|
+                                        txl$clusterID == "mid_grow" |
+                                        txl$clusterID == "small_halt" |
+                                        txl$clusterID == "big_halt" |
+                                        txl$clusterID == "mid_halt"]
+
+
+cells_for_cellphonedb <- colnames(txl)[txl$clusterID == "big_grow"|
+                                        txl$clusterID == "mid_grow" |
+                                        txl$clusterID == "big_halt" |
+                                        txl$clusterID == "mid_halt"]
+
+cells_for_cellphonedb <- colnames(txl)[txl$clusterID == "big"|
+                                        txl$clusterID == "mid"]
+
+txl_cellphonedb<-subset(txl, cells = cells_for_cellphonedb) 
+
+
+count_raw <- txl_cellphonedb@assays$RNA@counts
+count_norm <- apply(count_raw, 2, function(x) (x/sum(x))*10000)
+
+df_path_cellphone <- '/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/cellphoneDB/20210725_cellphoneDB_big_NUPR1.txt'
+write.table(count_norm, df_path_cellphone, sep='\t', quote=F)
+
+```
+
+CellphoneDB Meta
+
+```{r}
+
+path_meta_cellphoneDB <- '/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/cellphoneDB/20210725_meta_big_NUPR1.txt'
+
+# Generating metadata file.
+meta_data <- cbind(rownames(txl_cellphonedb@meta.data), txl_cellphonedb@meta.data[,'clusterID', drop=F])
+colnames(meta_data) <- c('Cell','cell_type')
+write.table(meta_data, path_meta_cellphoneDB, sep='\t', quote=F, row.names=F)
+
+```
+
+
+
+
+
+
+```{r}
+
+# DoHeatmap now shows a grouping bar, splitting the heatmap into groups or clusters. This can
+# be changed with the `group.by` parameter
+
+genes <- c('NUPR1','FTH1','GJB6','SQSTM1','AKR1C1','TMSB4X','CSTA','KRT14','NEAT1','KRT5','FXYD3', #mid
+           'PSMA7','YWHAB','RPS21','EIF6','DKK1','SNRPB','CPNE1','PPDPF','DSIN','SNX5','ZEAS1')
+
+genes <- c("SFRP1",'EIF6','PSMA7','DKK1','FOXM1','AXL','SNX5','MKI67','YWHAB','PPDPF',
+           'NUPR1','TMSB4X','NEAT1','FTH1','GJB6','CALML3','KRT14','KRT5','SQSTM1','AKR1C1')
+
+cells_plot <- colnames(txl)[txl$clusterID == "expanding" | txl$clusterID == "non_expanding"]
+other_cell <- colnames(txl)[txl$clusterID == "other"]
+cells_plot <- append(cells_plot, other_cell[1:500])
+
+
+#pdf(file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/heat_map.pdf")
+
+DoHeatmap(txl, features = genes, cells = cells_plot, size = 4, draw.lines = FALSE,
+    angle = 90, group.by = "clusterID",
+    group.colors  = c("#fad105","darkblue","grey"))# + NoLegend()
+
+#dev.off()
+```
+
+
+```{r}
+#20231220
+# DoHeatmap now shows a grouping bar, splitting the heatmap into groups or clusters. This can
+# be changed with the `group.by` parameter
+
+# Regressed out cell cycle will have confounding signal for the cell cycle genes that I want to show
+# so load in data before regression
+#load in RDS file for future analysis
+txl<-readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes.rds")
+
+txl$seurat_clusters_highless <- seurat_obj_regressed$seurat_clusters_highless
+
+
+#genes <- c('NUPR1','FTH1','GJB6','SQSTM1','AKR1C1','TMSB4X','CSTA','KRT14','NEAT1','KRT5','FXYD3', #mid
+#          'PSMA7','YWHAB','RPS21','EIF6','DKK1','SNRPB','CPNE1','PPDPF','DSIN','SNX5','ZEAS1')
+
+genes <- c("SFRP1",'EIF6','PSMA7','DKK1','FOXM1','AXL','SNX5','MKI67','YWHAB','PPDPF',
+           'NUPR1','TMSB4X','NEAT1','FTH1','GJB6','CALML3','KRT14','KRT5','SQSTM1','AKR1C1')
+
+cells_plot <- colnames(txl)[txl$seurat_clusters_highless == "Highly Proliferative"]
+other_cell <- colnames(txl)[txl$seurat_clusters_highless == "Less Proliferative"]
+cells_plot <- append(cells_plot[1:3000], other_cell[1:3000])
+
+pdf(file = "//Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/heatmap/heat_map_highless.pdf")
+
+DoHeatmap(txl, features = genes, size = 4, draw.lines = FALSE, 
+    angle = 0, group.by = "seurat_clusters_highless",
+    group.colors  = c("darkgreen","darkblue"))# + NoLegend()
+
+dev.off()
+
+```
+
+```{r}
+# make clusterID default lable
+Idents(txl)<-txl$clusterID
+
+#identify differentially expressed genes
+big_g_h <- FindMarkers(object = txl, ident.1 = 'big_grow', ident.2 = 'big_halt')
+big_g_mid_g <- FindMarkers(object = txl, ident.1 = 'big_grow', ident.2 = 'mid_grow')
+big_g_mid_h <- FindMarkers(object = txl, ident.1 = 'big_grow', ident.2 = 'mid_halt')
+big_h_mid_h <- FindMarkers(object = txl, ident.1 = 'big_halt', ident.2 = 'mid_halt')
+mid_g_h <- FindMarkers(object = txl, ident.1 = 'mid_grow', ident.2 = 'mid_halt')
+
+```
+
+
+
+
+
+DEenrichRPlot(
+  object,
+  ident.1 = 'big',
+  ident.2 = 'mid',
+  balanced = TRUE,
+  logfc.threshold = 0.25,
+  assay = NULL,
+  max.genes,
+  test.use = "wilcox",
+  p.val.cutoff = 0.05,
+  cols = NULL,
+  enrich.database = NULL,
+  num.pathway = 10)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Separate data into:
+
+  Grower + proliferative 
+  Grower + halt
+  
+  Non_Grower + proliferative
+  Non_Grower + halt
+```{r}
+
+
+name_small <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold )] #small
+name_big <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold )]   #big
+ #lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold )] <- "small"
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold )] <- "big"
+txl$clusterID[txl$clusterID != "small" & txl$clusterID != "big" ] <- "other"
+
+DefaultAssay(object = txl) <- "RNA"
+Idents(txl) <- txl$clusterID
+txl.markers <- FindMarkers(object = txl, ident.1 = "small",ident.2 = "other", ident.3 = "big", min.pct = 0.25)
+
+top10 <- head(VariableFeatures(txl), 10)
+
+txl.markers %>%
+    group_by(txl$clusterID) %>%
+    top_n(n = 10, wt = avg_log2FC) -> top10
+
+DefaultAssay(object = txl) <- "RNA"
+tx<-NormalizeData(txl)
+tx<- ScaleData(txl)
+
+genes <- c("FN1","MKI67","PLIN2","NUPR1","IFI6","TOP2A","KRT6B","GJB6")
+DoHeatmap(txl,
+          cells = c(name_big,name_small),
+          group.by = 'clusterID',
+          features = genes, balanced = TRUE) + NoLegend()
+
+DimHeatmap(object = txl, dims = 2,  cells = c(name_big,name_small))
+
+
+View(txl.markers)
+
+FeaturePlot(txl, features = c("INHBA","MIF","JAM3","LAMA3","RHBDF2","CLCF1","CNTF","COL17A1"),
+            pt.size = .1, combine = FALSE, order = TRUE)
+            #min.cutoff = 0, max.cutoff = 1)
+
+#DefaultAssay(object = txl) <- "length_family_fullID_fifty_percent"
+VlnPlot(txl, features = c("FN1","MKI67","PLIN2","NUPR1","IFI6","TOP2A","KRT6B","GJB6"),
+        combine = FALSE,
+        group.by = 'clusterID')
+```
+
+
+
+SAVE
+
+```{r}
+#maker RDS file
+#saveRDS(txl, file = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes.rds")
+
+#load in RDS file for future analysis
+txl<-readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes.rds")
+```
+
+cellphoneDB
+```{r}
+write.table(as.matrix(GetAssayData(object = txl, slot = "counts")), 
+            '/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes_counts_space.txt', 
+            sep = ' ', row.names = T, col.names = T, quote = F)
+```
+
+
+
+
+
+
+
+```{r}
+sleepwalk( Embeddings(Reductions(txl, "umap")), Embeddings(Reductions(txl, "pca")) )
+
+```
+
+
+
+
+
+
+
+
+
+
+
+Plot by lineage size (creat clusters)
+```{r}
+
+#find_big_threshold 
+#find_small_threshold 
+
+name_small <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold )] #small
+name_big <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold )]   #big
+ #lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold )] <- "small"
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold )] <- "big"
+txl$clusterID[txl$clusterID != "small" & txl$clusterID != "big" ] <- "other"
+
+DefaultAssay(object = txl) <- "RNA"
+Idents(txl) <- txl$clusterID
+txl.markers <- FindMarkers(object = txl, ident.1 = "small",ident.2 = "other", ident.3 = "big", min.pct = 0.25)
+
+top10 <- head(VariableFeatures(txl), 10)
+
+txl.markers %>%
+    group_by(txl$clusterID) %>%
+    top_n(n = 10, wt = avg_log2FC) -> top10
+
+DefaultAssay(object = txl) <- "RNA"
+tx<-NormalizeData(txl)
+tx<- ScaleData(txl)
+
+genes <- c("FN1","MKI67","PLIN2","NUPR1","IFI6","TOP2A","KRT6B","GJB6")
+genes <- c("KRT14","KRT13","KRT4","KRT5","MKI67")
+FeaturePlot(txl, features = genes,
+            pt.size = .1, combine = FALSE, order = TRUE, cols = c("grey", "blue","red"))
+DoHeatmap(txl,
+          cells = c(name_big,name_small),
+          group.by = 'clusterID',
+          features = genes, balanced = TRUE) + NoLegend()
+
+DimHeatmap(object = txl, dims = 2,  cells = c(name_big,name_small))
+
+
+View(txl.markers)
+
+FeaturePlot(txl, features = c("PLIN2","NUPR1","IFI6","TOP2A","KRT6B","GJB6"), pt.size = .1, combine = FALSE, order = TRUE)
+
+#DefaultAssay(object = txl) <- "length_family_fullID_fifty_percent"
+VlnPlot(txl, features = c("FN1","MKI67","PLIN2","NUPR1","IFI6","TOP2A","KRT6B","GJB6"),
+        combine = FALSE,
+        group.by = 'clusterID')
+
+top10 <- txl.markers  %>% top_n(n = 10, wt = avg_logFC) -> top10
+DoHeatmap(pbmc, features = top10$gene) + NoLegend()
+
+
+
+```
+
+
+ 
+
+ 
+ 
+ 
+ 
+ 
+
+Determine most differentially expressed genes between pro-non-preliferative
+```{r}
+#lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal < 8)] <- "non"
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= 90)] <- "pro"
+
+#txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal < 50 & txl$nCount_length_family_fullID_equal > 40)] <- "mid"
+
+txl$clusterID[txl$clusterID != "pro" & txl$clusterID != "non" & txl$clusterID != "mid"] <- "other"
+
+
+DimPlot(txl, group.by = "clusterID",
+        pt.size = .1,
+        order = TRUE,
+        cols = c("blue","green","grey","red"))
+
+sum(txl$clusterID == "non")
+sum(txl$clusterID == "pro")
+
+
+Ki67_x <- txl@assays$RNA["DKK1",][txl$clusterID == "pro" | txl$clusterID == "non"]
+FN1_y <- txl$family_fullID_trusted[txl$clusterID == "pro" | txl$clusterID == "non"]
+size_z <- txl$family_fullID_equal[txl$clusterID == "pro" | txl$clusterID == "non"]
+image_df <- data.frame(Ki67 = Ki67_x,FN1 = FN1_y, Colony_size = size_z)
+
+
+ggplot(image_df, aes(Ki67,FN1)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+    labs(title = '10xSTR Day 7.5',
+         x = 'Ki67 intensity (proliferative) [A.U]',
+         y = 'FN1 intensity (proliferative) [A.U]')
+
+```
+
+
+# Average the expression of FN1 and Ki67 for every lineage 
+```{r echo=FALSE, message=FALSEE, warning = FALSE}
+#df_fam_1 <- df_fam[,colnames(df_fam) %in% colnames(txl)]
+
+ki67_lin <- c()
+fn1_lin <- c()
+dkk1_lin <- c()
+pro_non_lin <- c()
+lin_length <- c()
+
+
+lin <- txl$lin
+lin_picked <- unique(lin)
+for (i in 1:length(lin_picked)){
+  
+  #pro_non_label <- txl$clusterID[lin %in% lin_picked[i]]
+  
+  #if (sum(pro_non_label == "pro" | pro_non_label == "non") > 0 ){
+    ki67_lin <- append(ki67_lin,  mean(txl@assays$RNA["MKI67",][lin %in% lin_picked[i]]))
+    fn1_lin <- append(fn1_lin,   mean(txl@assays$RNA["FN1",][lin %in% lin_picked[i]]))
+    dkk1_lin <- append(dkk1_lin,  mean(txl@assays$RNA["DKK1",][lin %in% lin_picked[i]]))
+    lin_length <- append(lin_length,as.vector(txl$family_fullID_equal[lin %in% lin_picked[i]][1]))
+    
+    #if (sum(pro_non_label == "pro")>0){
+     # pro_non_lin <- append(pro_non_lin,"pro")
+    #}else{
+      #pro_non_lin <- append(pro_non_lin,"non")
+      #}
+  #}
+
+}
+
+df_pro_non <- data.frame(Ki67 = ki67_lin,
+                         FN1 = fn1_lin,
+                         DKK1 = dkk1_lin,
+                         Colony_size = lin_length)
+
+```
+
+
+
+
+
+
+
+
+```{r echo=FALSE, message=FALSEE, warning = FALSE}
+#df_fam_1 <- df_fam[,colnames(df_fam) %in% colnames(txl)]
+
+ki67_lin <- c()
+fn1_lin <- c()
+dkk1_lin <- c()
+pro_non_lin <- c()
+lin_length <- c()
+
+
+lin <- txl$lin
+lin_picked <- unique(lin)
+
+important.terms = c("MKI67","FN1","DKK1")
+
+indcs = which(rownames(txl@assays$RNA@counts) %in% important.terms)
+sparse.matrix.filtered <- txl@assays$RNA@counts[indcs, , drop=F]
+
+for (i in 1:length(lin_picked)){
+
+    ki67_lin <- append(ki67_lin,  mean(sparse.matrix.filtered["MKI67",][lin %in% lin_picked[i]]))
+    fn1_lin <- append(fn1_lin,   mean(sparse.matrix.filtered["FN1",][lin %in% lin_picked[i]]))
+    dkk1_lin <- append(dkk1_lin,  mean(sparse.matrix.filtered["DKK1",][lin %in% lin_picked[i]]))
+    lin_length <- append(lin_length,as.vector(txl$family_fullID_equal[lin %in% lin_picked[i]][1]))
+
+
+}
+
+df_pro_non <- data.frame(Ki67 = ki67_lin,
+                         FN1 = fn1_lin,
+                         DKK1 = dkk1_lin,
+                         Colony_size = lin_length)
+
+```
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/Sup_10x_1.pdf")
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(Ki67,FN1)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Ki67, df_pro_non$FN1,method = "pearson"),4)), as.character(cor.test(df_pro_non$Ki67, df_pro_non$DKK1)$p.value))   ,
+         x = 'Ki67 ',
+         y = 'FN1')+ geom_smooth(method=lm, se=FALSE,mapping = aes(x = Ki67, y =FN1))+  scale_y_log10() + scale_x_log10()
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(Colony_size,Ki67)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Colony_size, df_pro_non$Ki67,method = "pearson"),4)), as.character(cor.test(df_pro_non$Ki67, df_pro_non$Colony_size)$p.value))   ,
+         x = 'Colony_size',
+         y = 'Ki67')    + geom_smooth(method=lm, se=FALSE,mapping = aes(x = Colony_size, y =Ki67))+  scale_y_log10() 
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(Colony_size,DKK1)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Colony_size, df_pro_non$DKK1,method = "pearson"),4)), as.character(cor.test(df_pro_non$Colony_size, df_pro_non$DKK1)$p.value))   ,
+         x = 'Colony_size',
+         y = 'DKK1')    + geom_smooth(method=lm, se=FALSE,mapping = aes(x = Colony_size, y =DKK1))+  scale_y_log10()
+  
+ggplot(df_pro_non %>% arrange(Colony_size), aes(Colony_size,FN1)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Colony_size, df_pro_non$FN1,method = "pearson"),4)), as.character(cor.test(df_pro_non$Colony_size, df_pro_non$FN1)$p.value))   ,
+         x = 'Colony_size',
+         y = 'FN1')+ geom_smooth(method=lm, se=FALSE,mapping = aes(x = Colony_size, y = FN1))+  scale_y_log10() 
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(DKK1,FN1)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$DKK1, df_pro_non$FN1,method = "pearson"),4)), as.character(cor.test(df_pro_non$Ki67, df_pro_non$DKK1)$p.value))   ,
+         x = 'DKK1',
+         y = 'FN1')+ geom_smooth(method=lm, se=FALSE,mapping = aes(x = DKK1, y = FN1))+  scale_y_log10() + scale_x_log10()
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(DKK1,Ki67)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Ki67, df_pro_non$DKK1,method = "pearson"),4)), as.character(cor.test(df_pro_non$Ki67, df_pro_non$DKK1)$p.value))   ,
+         x = 'DKK1',
+         y = 'Ki67')+ geom_smooth(method=lm, se=FALSE,mapping = aes(x = DKK1, y = Ki67))+  scale_y_log10() + scale_x_log10()
+
+
+
+
+
+
+dev.off()
+
+```
+
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(viridis)
+library(Seurat)
+library(scCustomize)
+library(qs)
+
+
+pdf(file =  "/Volumes/GoogleDrive/My Drive/Hueros_Shared/Paper/Data/10x/Sup_10x_2.pdf")
+
+txl$BinMylabels <-as.numeric(txl$clusterID == "big")
+
+rasterize(Plot_Density_Custom(seurat_object = txl, features = "BinMylabels",  pt.size = 2),  dpi=812)
+rasterize(Plot_Density_Joint_Only(seurat_object = txl, features =  c('DKK1','FOXM1',"SFRP1"),  pt.size = 2),  dpi=812)
+
+dev.off()
+
+
+
+
+```
+
+
+
+
+Determine most differentially expressed genes between pro-non-preliferative
+```{r}
+#lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+txl$clusterID[as.vector(txl@assays$RNA["MKI67",] > 1)] <- "pro"
+txl$clusterID[as.vector(txl@assays$RNA["FN1",]>1.5)] <- "non"
+txl$clusterID[txl$clusterID != "pro" & txl$clusterID != "non"] <- "mid"
+
+
+
+DimPlot(txl, group.by = "clusterID")
+```
+
+# Check every lineage and determine if they are pro or non (cluster)
+```{r}
+
+pro_lin <- c()
+non_lin <- c()
+mid_lin <- c()
+lin_length <- c()
+
+for (i in 1:length(rownames(df_fam))){
+  
+  pro_non_label <- clusterID[lin %in% lin_picked[i]]
+  lin_length <- c(lin_length,length(pro_non_label))
+  
+  pro_lin <- c(pro_lin, 100*sum(pro_non_label == "pro")/length(pro_non_label))
+  non_lin <- c(non_lin, 100*sum(pro_non_label == "non")/length(pro_non_label))
+  mid_lin <- c(mid_lin, 100*sum(pro_non_label == "mid")/length(pro_non_label))
+}
+
+df_pro_non <- data.frame(pro = pro_lin,
+                         non = non_lin,
+                         mid = mid_lin,
+                         size = lin_length)
+
+
+paste("non small fams", 100*sum(df_pro_non$non[1:30] >= 65)/30 )
+paste("pro small fams", 100*sum(df_pro_non$pro[1:30] >= 65)/30 )
+
+paste("non big fams", 100*sum(df_pro_non$non[31:60] >= 65)/30 )
+paste("pro big fams", 100*sum(df_pro_non$pro[31:60] >= 65)/30 )
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+# Get family length values for lin
+unique_lin <- unique(txl$lin)
+length_lin_to_pick <- c()
+for (i in 1:length(unique_lin) ){
+  length_lin_to_pick <- c(length_lin_to_pick,sum(txl$lin == unique_lin[i] ))
+}
+
+# get top lin 
+lin_big <- unique_lin[length_lin_to_pick >= 30]
+
+
+hold_linname <- txl@meta.data$lin
+uni_1 <- unique(txl@meta.data$lin)
+lineage_size_list <- c()
+for (i in uni_1) {
+  pop <- sum(txl@meta.data$lin == i)
+  lineage_size_list <- append(lineage_size_list,pop)
+  
+  if (lin_big[1] == i){
+    hold_linname[txl@meta.data$lin == i] <- "big"
+  } else{
+    hold_linname[txl@meta.data$lin == i]<- "small"
+  }
+}
+hist(lineage_size_list, breaks = 40)
+
+txl$lin_divided <- hold_linname
+
+
+DimPlot(txl, split.by = "lin_divided")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+hold_linname <- txl@meta.data$lin
+uni_1 <- unique(txl@meta.data$lin)
+lineage_size_list <- c()
+for (i in uni_1) {
+  pop <- sum(txl@meta.data$lin == i)
+  lineage_size_list <- append(lineage_size_list,pop)
+  
+  if (pop < 6){
+    hold_linname[txl@meta.data$lin == i] <- "S5"
+  } else if (pop < 11){
+    hold_linname[txl@meta.data$lin == i]<- "S10"
+  } else if (pop < 21){
+    hold_linname[txl@meta.data$lin == i]<- "S20"
+  } else if (pop <= 25){
+    hold_linname[txl@meta.data$lin == i]<- "S25"
+  } else if (pop < 31){
+    hold_linname[txl@meta.data$lin == i]<- "S30"
+  } else if (pop < 35){
+    hold_linname[txl@meta.data$lin == i]<- "S34"
+  } else if (pop < 41){
+    hold_linname[txl@meta.data$lin == i]<- "S40"
+  }
+}
+hist(lineage_size_list, breaks = 40)
+
+txl$lin_divided <- hold_linname
+```
+
+```{r}
+DimPlot(txl, split.by = "lin_divided",ncol = 3)
+```
+
+
+
+
+
+
+
+
+
+Plot a few leneages per plot 
+```{r}
+#
+lin_big_trust <- unique(txl$lin[txl$nCount_length_family_fullID_trusted >= 25])
+lin_big       <- unique(txl$lin[txl$nCount_length_family_fullID_equal >= 95])
+
+plot.list <- list()
+
+for (i in lin_big_trust ) {
+  
+  the_lin <- 1:length(txl$lin)
+  the_lin <- the_lin * 0
+  
+  the_lin[txl$lin==i] <- 1
+  
+  txl$lin_5 <- the_lin
+  
+  
+  plot.list[[i]] <- DimPlot(txl, reduction = "umap",
+                            group.by = 'lin_5',
+                            pt.size = 1,
+                            order = TRUE)
+}
+plot.list
+
+plot.list <- list()
+
+for (i in lin_big ) {
+  
+  the_lin <- 1:length(txl$lin)
+  the_lin <- the_lin * 0
+  
+  the_lin[txl$lin==i] <- 1
+  
+  txl$lin_5 <- the_lin
+  
+  
+  plot.list[[i]] <- DimPlot(txl, reduction = "umap",
+                            group.by = 'lin_5',
+                            pt.size = 1,
+                            order = TRUE)
+}
+plot.list
+
+```
+
+
+
+
+
+
+
+#------------------------------------------------------------------------------------------
+# Subset first 100 lineages
+#------------------------------------------------------------------------------------------
+
+```{r}
+
+unique_lin <- unique(txl$lin)
+length_lin_to_pick <- c()
+for (i in 1:length(unique_lin) ){
+  length_lin_to_pick <- c(length_lin_to_pick,sum(txl$lin == unique_lin[i] ))
+}
+```
+
+```{r}
+lin20 <- unique_lin[length_lin_to_pick >= 25]
+lin5 <- unique_lin[length_lin_to_pick <= 5]
+lin20 <- unique_lin[length_lin_to_pick >= 25]
+
+lin_picked <- c(lin5,lin20)#unique(txl$lin[1:106])
+txl_small<-subset(txl, cells = obc[txl$lin %in%  lin_picked] ) 
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+fileConn<-file('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/r_to_py_largefam.csv')
+writeLines(colnames(txl)[txl$nCount_length_family_fullID_equal >= 95], fileConn)
+close(fileConn)
+
+
+```{r}
+
+
+#find_big_threshold 
+#find_small_threshold 
+find_small_threshold = 7
+
+name_small <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold )] #small
+name_mid <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal > find_mid_threshold[1] & 
+                                      txl$nCount_length_family_fullID_equal < find_mid_threshold[2])]   #mid
+name_big <- colnames(txl)[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold )]   #big
+
+ #lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal <= find_small_threshold)] <- "small"
+
+#txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal > find_mid_threshold[1] & 
+#                                      txl$nCount_length_family_fullID_equal < find_mid_threshold[2])] <- "mid"
+
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold)] <- "expanding"
+
+txl$clusterID[txl$clusterID != "small" &
+                #txl$clusterID != "mid" &
+                txl$clusterID != "expanding"] <- "other"
+
+
+DimPlot(txl, group.by = "clusterID", pt.size = 1,
+        order = c("expanding","small","other"))+
+  scale_color_manual(values = c("grey","#c97404","#fad105" ))+
+  labs(color = "Colony Size")
+
+
+
+
+#lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+txl$clusterID <- as.character(txl$seurat_clusters)
+txl$clusterID[as.vector(txl$nCount_length_family_fullID_equal >= find_big_threshold)] <- "expanding"
+
+txl$clusterID[as.vector(txl@assays$RNA["NUPR1",] >= .7)] <- "non_expanding"
+
+
+txl$clusterID[txl$clusterID != "expanding"&
+                txl$clusterID != "non_expanding"] <- "other"
+
+
+DimPlot(txl, group.by = "clusterID", pt.size = 1,
+        order = c("expanding","non_expanding","other"))+
+  scale_color_manual(values = c("grey","darkblue","#fad105"))+
+  labs(color = "Colony Size")
+```
+
+
+```{r}
+family_fullID_fifty_percent_path <- "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/files_family_metadata/Step2/20210723_family_fullID_fifty_percent.csv"
+
+family_fullID_trusted <- read.table(family_fullID_trusted_path,header= FALSE)
+```
+
+BiocManager::install("EnsDb.Hsapiens.v79")
+```{r}
+#library(EnsDb.Hsapiens.v79)
+
+# 1. Convert from ensembl.gene to gene.symbol
+ensembl.genes <- c("ENSP00000330070", "ENSG00000099308", "ENSG00000142676", "ENSG00000180776", "ENSG00000108848", "ENSG00000277370", "ENSG00000103811", "ENSG00000101473")
+
+geneIDs1 <- ensembldb::select(EnsDb.Hsapiens.v79, keys= ensembl.genes, keytype = "GENEID", columns = c("SYMBOL","GENEID"))
+
+# 2. Convert from gene.symbol to ensembl.gene
+geneSymbols <-  c('DDX26B','CCDC83',  'MAST3', 'RPL11', 'ZDHHC20',  'LUC7L3',  'SNORD49A',  'CTSH', 'ACOT8')
+
+geneIDs2 <- ensembldb::select(EnsDb.Hsapiens.v79, keys= geneSymbols, keytype = "SYMBOL", columns = c("SYMBOL","GENEID"))
+```
+
+
+```{r}
+FeaturePlot(txl, features = c("DKK1","EGF","EGFR","CKAP4","SFRP1",'EIF6','DKK1','SNRPB'))
+FeaturePlot(txl, features = c('PPDPF'))
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+DimPlot(txl, group.by = 'Phase')
+
+t_grow<-subset(txl, cells = Cells(txl)[txl$Phase %in% c('S','G2M')]) 
+```
+
+```{r}
+DimPlot(t_grow, group.by = 'Phase')
+
+```
+
+```{r}
+
+FeatureScatter(t_grow, feature1 = "nCount_length_family_fullID_equal", feature2 = "DKK1", group.by = "Phase")
+
+```
+
+
+
+
+
+
+
+# Average the expression of FN1 and Ki67 for every lineage 
+```{r}
+#df_fam_1 <- df_fam[,colnames(df_fam) %in% colnames(txl)]
+
+ki67_lin <- c()
+fn1_lin <- c()
+dkk1_lin <- c()
+pro_non_lin <- c()
+lin_length <- c()
+
+
+lin <- txl$lin
+lin_picked <- unique(lin)
+for (i in 1:length(lin_picked)){
+  
+  pro_non_label <- txl$clusterID[lin %in% lin_picked[i]]
+  
+  if (sum(pro_non_label == "expanding_halt" | pro_non_label == "expanding_grow" |pro_non_label == "non_expanding_grow" | pro_non_label == "non_expanding_halt") > 0 ){
+    ki67_lin <- append(ki67_lin,  mean(txl@assays$RNA["MKI67",][lin %in% lin_picked[i]]))
+    fn1_lin <- append(fn1_lin,  mean(txl@assays$RNA["FN1",][lin %in% lin_picked[i]]))
+    dkk1_lin <- append(dkk1_lin,  mean(txl@assays$RNA["DKK1",][lin %in% lin_picked[i]]))
+    lin_length <- append(lin_length,as.vector(txl$family_fullID_equal[lin %in% lin_picked[i]][1]))
+    
+    if (sum(pro_non_label == "expanding_halt" | pro_non_label == "expanding_grow")>0){
+      pro_non_lin <- append(pro_non_lin,"pro")
+    }else{
+      pro_non_lin <- append(pro_non_lin,"non")
+      }
+  }
+
+}
+
+df_pro_non <- data.frame(Ki67 = ki67_lin,
+                         FN1 = fn1_lin,
+                         DKK1 = dkk1_lin,
+                         Colony_size = lin_length)
+
+```
+
+
+```{r}
+ggplot(df_pro_non, aes(Colony_size,DKK1)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = c("#359631","#05adff"))
+  labs(title = '10xSTR Day 7.5',
+         x = 'Number of cells per colony',
+         y = 'DKK1')
+    
+    
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+suppressPackageStartupMessages({
+    library(slingshot)
+})
+```
+
+
+```{r}
+t_grow<-subset(txl, cells = Cells(txl)[txl$Phase %in% c('S')]) 
+t_grow <- RunPCA(object = t_grow)
+```
+
+```{r}
+# Save the objects as separate matrices for input in slingshot
+dimred <- t_grow@reductions$umap@cell.embeddings
+clustering <- t_grow$RNA_snn_res.0.5
+counts <- as.matrix(t_grow@assays$RNA@counts[t_grow@assays$RNA@var.features, ])
+```
+
+
+```{r}
+
+# Run default Slingshot lineage identification
+set.seed(1)
+lineages <- getLineages(data = dimred, clusterLabels = clustering)
+
+lineages
+
+sds <- slingshot(Embeddings(t_grow, "umap"), clusterLabels = t_grow$seurat_clusters, 
+                 start.clus = 4, stretch = 0)
+
+```
+```{r}
+
+```
+
+```{r}
+# Define a color pallete to use
+pal <- c(RColorBrewer::brewer.pal(9, "Set1"), RColorBrewer::brewer.pal(8, "Set2"))
+```
+
+```{r}
+# Plot the lineages
+par(mfrow = c(1, 2))
+plot(dimred[, 1:2], col = pal[clustering], cex = 0.5, pch = 16)
+for (i in levels(clustering)) {
+    text(mean(dimred[clustering == i, 1]), mean(dimred[clustering == i, 2]), labels = i, font = 2)
+}
+plot(dimred[, 1:2], col = pal[clustering], cex = 0.5, pch = 16)
+lines(lineages, lwd = 2, col = "black")
+```
+
+```{r}
+plot3d(SlingshotDataSet(sce))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+library(scater)
+by.cluster <- aggregateAcrossCells(t_grow, ids=colLabels(t_grow))
+centroids <- reducedDim(by.cluster, "PCA")
+
+
+
+
+
+# Set clusters=NULL as we have already aggregated above.
+library(TSCAN)
+mst <- createClusterMST(centroids, clusters=NULL)
+mst
+
+
+
+
+
+```
+
+
+
+
+
+```{r}
+# Create new of object
+nsfv2_exptreg <- txl
+
+# Change the variable features to only be the 50 genes of interest
+VariableFeatures(nsfv2_exptreg) <- c('MKI67','DKK1','SFRP1','TPX2','FOXM1','KRT14',"FN1","MKI67","PLIN2","NUPR1","IFI6","TOP2A","KRT6B","GJB6","CALML3","IFI27","FN1")
+# Now proceed with next steps
+
+
+# Re-run ScaleData and PCA as by default they will use the features from the variable features slot.  This is why not re-running these is problematic after subsetting the data or changing the variable features.
+nsfv2_exptreg <- ScaleData(nsfv2_exptreg)
+nsfv2_exptreg <- RunPCA(nsfv2_exptreg)
+
+# Re-run FindCluster, FindNeighbors, RunUMAP
+dims_use <- 1:10
+nsfv2_exptreg <- FindNeighbors(nsfv2_exptreg, dims = dims_use)
+nsfv2_exptreg <- FindClusters(nsfv2_exptreg, resolution = 0.5)
+nsfv2_exptreg <- RunUMAP(nsfv2_exptreg, dims = dims_use)
+
+
+```
+
+```{r}
+#'MKI67','DKK1','SFRP1','TPX2','FOXM1','KRT14',"FN1",'NGFR',
+
+FeaturePlot(txl, features = c('MKI67','DKK1','KRT14','COL17A1','COL7A1','LAMC2','nFeature_RNA','nCount_RNA','NGFR','IVL'),combine = FALSE, cols = c(rev(brewer.pal(n = 20, name = "RdYlBu")))  )
+FeaturePlot(txl, features = c('MKI67','DKK1','KRT14','COL17A1','COL7A1','LAMC2','IVL'),combine = FALSE, max.cutoff = 1)
+
+```
+
+```{r}
+Idents(txl) <- "clusterID"
+
+FeatureScatter(object = subset(x = txl, idents = c("other"), invert = TRUE), feature1 = 'DKK1', feature2 = 'family_fullID')
+
+```
+
+```{r}
+FeaturePlot(txl, features = c('family_fullID','family_fullID_trusted'),
+            pt.size = .1, combine = FALSE, order = TRUE, cols = c(rev(brewer.pal(n = 20, name = "RdYlBu")))  )
+
+```
+
+```{r}
+FeaturePlot(txl, features = c('family_fullID'),
+            pt.size = .1) + scale_colour_gradientn(colours = rev(brewer.pal(n = 20, name = "RdYlBu")))
+```
+
+
+
+```{r}
+FeaturePlot(txl, features = c('DKK1','TNFRSF12A','AREG','PHLDA1','GJB2','KRT17','FGFBP1','GLUL',
+'SOD2','STK17A','HAS3','SAA1','ITGB1','TSC22D1','LTF'),
+            pt.size = .1, combine = FALSE, order = TRUE, cols = c("grey", "blue","red"))
+
+```

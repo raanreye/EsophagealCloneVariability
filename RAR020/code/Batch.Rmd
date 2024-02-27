@@ -1,0 +1,378 @@
+---
+title: "Untitled"
+author: "Raul A. Reyes Hueros"
+date: "10/7/2023"
+output: html_document
+---
+
+
+import necessary pacakges
+```{r,echo=FALSE}
+#using Seurat version 3.2.2
+library(qlcMatrix)
+library(Seurat)
+library(ggplot2)
+library(RColorBrewer)
+```
+
+```{r}
+txl<-readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes.rds")
+
+```
+
+# Create ID for each lane
+```{r}
+txl$laneID <- substr(colnames(txl), 1, 2)
+
+```
+
+# Plot each lane to see overlap
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Batch/Lane_batch.pdf",   # The directory you want to save the file in
+    width = 4, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+DimPlot(txl, group.by = "laneID", pt.size = .3)
+
+dev.off()
+```
+
+
+
+```{r}
+DimPlot(txl, reduction = "umap")
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Batch/PCA_clusterID.pdf",   # The directory you want to save the file in
+    width = 4, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+DimPlot(txl, reduction = "pca",group.by = "laneID")
+
+
+DimPlot(har.obj, reduction = "pca",group.by = "clusterID")+
+  scale_color_manual(values = c("#fad105","darkblue"))+
+  labs(title = "PCA")
+
+dev.off()
+```
+
+
+# Dem reduction (alternatives)
+
+har.obj <- txl[,txl$clusterID != 'other']
+har.obj <- txl
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Batch/TSNE.pdf",   # The directory you want to save the file in
+    width = 4, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+for (i in c(10,50,100,150,200,250,300,350,400) ) {#
+  har.obj <- RunTSNE(har.obj, reduction = "pca", dims.use = 1:20, k.seed = 42,perplexity = i)
+  p <- DimPlot(har.obj, reduction = "tsne", group.by = "clusterID", pt.size = .1)+
+        scale_color_manual(values = c("#fad105","darkblue")) + ggtitle(paste('Perplexity = ', as.character(i)))
+  print(p)
+}
+
+
+
+dev.off()
+```
+
+
+# change steps to see if it converged
+```{r}
+for (i in c(50,500,750,1000,2000) ) {#
+  har.obj <- RunTSNE(har.obj, reduction = "pca", dims.use = 1:2, k.seed = 42,perplexity = 150, max_iter = i)
+  p <- DimPlot(har.obj, reduction = "tsne", group.by = "clusterID", pt.size = .1) 
+  print(p)
+}
+
+```
+
+
+
+Adjust for possible batch effect
+```{r}
+library(harmony)
+## run harmony with default parameters
+har.obj.y <- RunHarmony(txl[,txl$clusterID != 'other'], "laneID", project.dim = F)
+
+
+harmony_embeddings <- Embeddings(har.obj.y, 'harmony')
+DimPlot(object = har.obj.y, reduction = "harmony", pt.size = .1, group.by = "laneID")
+VlnPlot(object = har.obj.y, features = "harmony_1", group.by = "laneID", pt.size = .1)
+
+
+har.obj.y <- RunUMAP(har.obj,dims = 20, reduction = "harmony")
+
+```
+```{r}
+library(cluster)
+# Create two sample matrices
+matrix1 <- as.matrix(Embeddings(har.obj.y, reduction = "pca"))
+matrix2 <- Embeddings(har.obj.y, reduction = "harmony")
+
+# Combine the matrices
+combined_matrix <- cbind(matrix1, matrix2)
+df <- as.data.frame(combined_matrix)
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Batch/Harmony.pdf",   # The directory you want to save the file in
+    width = 4, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+DimPlot(object = har.obj.y, reduction = "harmony", pt.size = .1, group.by = "laneID")+ 
+  ggtitle('Harmony')
+DimPlot(object = har.obj.y, reduction = "pca", pt.size = .1,group.by = "laneID")+ 
+  ggtitle('PCA')
+
+cor_value <- cor(df$PC_1, df$harmony_1)
+ggplot(df, aes(x = PC_1, y = harmony_1)) +
+    geom_point(size = .1) +  
+    theme_minimal() +
+    labs(title = "Correlation between PCA and Harmony", x = "PC_1", y = "harmony_1")+ 
+  geom_text(aes(x=-20, y=10, label=sprintf("Correlation: %.2f", cor_value)), size=4)
+
+cor_value <- cor(df$PC_2, df$harmony_2)
+ggplot(df, aes(x = PC_2, y = harmony_2)) +
+    geom_point(size = .1) +  
+    theme_minimal() +
+    labs(title = "Correlation between PCA and Harmony", x = "PC_2", y = "harmony_2")+ 
+  geom_text(aes(x=-20, y=10, label=sprintf("Correlation: %.2f", cor_value)), size=4)
+
+# Compute correlation coefficient
+cor_value <- cor(df$PC_1, df$harmony_3)
+ggplot(df, aes(x = PC_1, y = PC_3)) +
+    geom_point(size = .1) +  
+    theme_minimal() +
+    labs(title = "Correlation between PCA and Harmony", x = "PC_1", y = "PC_3")+ 
+  geom_text(aes(x=20, y=20, label=sprintf("Correlation: %.2f", cor_value)), size=4)
+
+
+
+dev.off()
+```
+
+
+
+
+
+
+```{r}
+library(sleepwalk)
+sleepwalk( Embeddings(Reductions(har.obj, "umap")), Embeddings(Reductions(har.obj, "pca")) )
+```
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+install.packages("glmpca")
+```
+
+
+Usage
+```{r}
+library(glmpca)
+library(matrixStats)
+```
+
+# Raw counts
+```{r}
+counts <- GetAssayData(object = har.obj, slot = "counts")
+```
+
+#Filtering out lowly-expressed genes:
+
+Remove genes that are expressed in very few cells. For example, to keep only genes that are expressed in at least 3 cells:
+```{r}
+expressed_in_at_least_n_cells <- rowSums(counts > 0) >= 3
+counts <- counts[expressed_in_at_least_n_cells, ]
+```
+
+Filtering out low-quality cells:
+
+To remove cells with very few expressed genes or extremely high or low counts:
+
+```{r}
+
+# Cells with at least 200 genes detected
+cells_with_min_genes <- colSums(counts > 0) >= 200
+
+# Cells with total counts between some threshold, e.g., 500 and 25,000 
+# (You can adjust these numbers based on the specifics of your data and your quality control plots)
+min_count_threshold <- 200
+max_count_threshold <- 250000
+cells_within_count_range <- colSums(counts) >= min_count_threshold & colSums(counts) <= max_count_threshold
+
+# Applying the filtering
+counts <- counts[, cells_with_min_genes & cells_within_count_range]
+```
+
+# Filter out genes (rows) that are all zero across cells (columns)
+```{r}
+counts <- counts[rowSums(counts) > 0, ]
+```
+
+Now, you can apply glmpca:
+
+```{r}
+res = glmpca(counts, L=10)
+```
+
+```{r}
+
+res$
+
+```
+
+```{r}
+#visualize the latent structure
+factors<-res$factors
+plot(factors[,1],factors[,2],pch=19)
+```
+
+```{r}
+library(ggplot2)
+
+# Assuming `res` is the result from your glmpca call
+pca_df <- as.data.frame(res$factors)
+
+ggplot(pca_df, aes(x = dim1, y = dim2)) +
+    geom_point(aes(color = dim1)) +  # Color by the first component (or by any other variable of interest)
+    theme_minimal() +
+    labs(title = "GLMPCA", x = "dim1", y = "dim2")
+
+
+cluster_en <- har.obj$clusterID[colnames(har.obj) %in% rownames(res$factors)]
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Batch/GLMPCA.pdf",   # The directory you want to save the file in
+    width = 4, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+ggplot(pca_df,  aes(x = dim1, y = dim2, color = cluster_en)) +
+    geom_point(size = 1, stroke = .1) +
+    theme_minimal()+
+  scale_color_manual(values = c("#fad105","darkblue"))+
+  labs(title = "GLMPCA", x = 'factor_1', y = 'factor_2') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+dev.off()
+```
+
+
+
+
+
+
+
+Batch by expaning
+
+
+```{r}
+txl <-readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes.rds")
+
+txl$laneID <- substr(colnames(txl), 1, 2)
+
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/Batch/Boxplots.pdf")
+
+
+# Extract metadata and convert it to a data frame
+metadata_df <- data.frame(txl[,txl$clusterID != 'other']@meta.data)#seurat_obj@meta.data)
+
+# Count the number of cells in each cluster-lane combination
+count_df <- metadata_df %>%
+  group_by(clusterID, laneID) %>%
+  summarise(n = n())
+
+ggplot(count_df, aes(x = laneID, y = n, fill = clusterID)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(x = "Lane ID", y = "Number of Cells", fill = "Cluster Type") +
+  ggtitle("Cell Counts by Cluster Type and Lane")
+
+
+
+# Count the number of cells in each cluster-lane combination and calculate percentages
+count_df <- metadata_df %>%
+  group_by(laneID, clusterID) %>%
+  summarise(n = n()) %>%
+  mutate(total = sum(n),  # Total cells per laneID
+         percent = (n / total) * 100)  # Calculate percentage
+# Create the bar plot with percentages
+ggplot(count_df, aes(x = laneID, y = percent, fill = clusterID)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(x = "Lane ID", y = "Percentage of Cells", fill = "Cluster Type") +
+  ggtitle("Percentage of Cells by Cluster Type and Lane")
+
+
+dev.off()
+```
+
+
+```{r}
+# Create a data frame from metadata
+# Create a data frame from the metadata
+metadata_df <- seurat_obj@meta.data %>%
+  as.data.frame() %>%
+  count(as.vector(laneID), as.vector(clusterID) )
+```
+
+
+
+```{r}
+data <- read.csv('/Users/raul/Box/Shared_Raul/Code/barcode_resolver/STEP2/barcodes_in_cell_keep.csv')
+
+head(data)
+
+
+library(ggplot2)
+
+# Plot a histogram with ggplot2
+ggplot(data, aes(x = X4)) + 
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "CNV Histogram", x = "CNV Values", y = "Frequency")
+
+
+data$cnv_binned <- data$X4
+
+# Bin the values: 1 and 2, 3 and 4, 5 and 6; leave 0 alone
+data$cnv_binned[data$cnv_binned == 1 | data$cnv_binned == 2] <- 1
+data$cnv_binned[data$cnv_binned == 3 | data$cnv_binned == 4] <- 2
+data$cnv_binned[data$cnv_binned == 5 | data$cnv_binned == 6] <- 3
+data$cnv_binned[data$cnv_binned == 7 | data$cnv_binned == 8] <- 4
+data$cnv_binned[data$cnv_binned == 9 | data$cnv_binned == 10] <- 5
+data$cnv_binned[data$cnv_binned == 0] <- 0
+
+# Plot a histogram with the binned data
+ggplot(data, aes(x = cnv_binned)) + 
+  geom_bar(fill = "blue", color = "black") +
+  labs(title = "Binned CNV Histogram", x = "Binned CNV Values", y = "Frequency")
+
+paste(0,"   ",sum(data$cnv_binned == 0)/length(data$cnv_binned))
+paste(1,"   ",sum(data$cnv_binned == 1)/length(data$cnv_binned))
+paste(2,"   ",sum(data$cnv_binned == 2)/length(data$cnv_binned))
+paste(3,"   ",sum(data$cnv_binned == 3)/length(data$cnv_binned))
+paste(4,"   ",sum(data$cnv_binned == 4)/length(data$cnv_binned))
+paste(5,"   ",sum(data$cnv_binned == 5)/length(data$cnv_binned))
+
+# Plot a histogram with percentages
+ggplot(data, aes(x = cnv_binned, y = ..count../sum(..count..))) +
+  geom_bar(fill = "blue", color = "black", stat = "count") +
+  labs(title = "Binned CNV Histogram (Percentage)", x = "Binned CNV Values", y = "Percentage of Total") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+
+```
+

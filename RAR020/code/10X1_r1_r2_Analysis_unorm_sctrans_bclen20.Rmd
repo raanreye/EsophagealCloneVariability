@@ -1,0 +1,1135 @@
+---
+title: "10X1_r1_r2_Analysis"
+author: "Guillaume Harmange"
+date: "3/4/2021"
+output: html_document
+---
+import necessary pacakges
+```{r,echo=FALSE}
+#using Seurat version 3.2.2
+library(qlcMatrix)
+library(Seurat)
+library(ggplot2)
+library(RColorBrewer)
+```
+
+Import 10X data set
+```{r}
+#import data
+tx.data <- Read10X(data.dir ='/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/str10x_sample1_wbarcodes_counts/outs/filtered_feature_bc_matrix')
+
+
+#convert gene expression into a seurat object (some times seems to just error first time you run this line, just run again)
+txo <- CreateSeuratObject(counts = tx.data$`Gene Expression`)
+# add lineage data to the seurat object
+txo[['lineage']] <- CreateAssayObject(counts = tx.data$Custom, min.cells = 1)
+
+```
+
+Determine the amount of mitochondrial and riborsomal genes in each cell
+
+```{r}
+txo[["percent.mt"]] <- PercentageFeatureSet(object = txo, pattern = "^MT-")
+txo[["percent.rb"]] <- PercentageFeatureSet(object = txo, pattern = "^RPS")
+```
+
+Look at general features of data used for QC
+```{r, fig.height=7, fig.width=13}
+#Visualize QC metrics as a violin plot
+VlnPlot(object = txo, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb"), ncol = 4)
+FeatureScatter(object = txo, feature1 = "nCount_RNA", feature2 = "percent.mt") 
+FeatureScatter(object = txo, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+From QC plots above set filter parameters, and replot after filtration
+
+```{r, fig.height=7, fig.width=13}
+#subset based on filter parameters
+onc=txo@assays$lineage@counts@Dim[2]
+txo <- subset(x = txo, subset = nFeature_RNA > 4000 & nFeature_RNA < 10000 & percent.mt < 20)
+
+#percent of cells kept after this filter
+cf1 <- txo@assays$lineage@counts@Dim[2]/onc
+print(cf1*100)
+#plot after subsetting 
+VlnPlot(object = txo, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.rb"), ncol = 4)
+FeatureScatter(object = txo, feature1 = "nCount_RNA", feature2 = "percent.mt") 
+FeatureScatter(object = txo, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+```
+
+
+There were significant batch effects between the two replicate so we remove the batch effect here (wells 1-4 are batch 1 wells 5-8 are batch 2)
+
+```{r, echo=FALSE}
+# assing wells number to each sample
+#txo$well<- as.numeric(sapply(strsplit(sapply(txo@assays$RNA@counts@Dimnames[2], #as.character),"-"), `[`, 2))
+
+#based on well number assign replicate
+#txo$rep <- txo$well
+#txo$rep[txo$rep <= 4] <- "r1"
+#txo$rep[txo$rep != "r1"] <- "r2"
+
+# split the dataset into a list of two seurat objects
+#txo.list <- SplitObject(object = txo, split.by = "rep")
+
+
+# allow R to use more memory
+options(future.globals.maxSize= 10485760000)
+# normalize and identify variable features for each dataset independently
+#for (i in 1:length(txo.list)) {
+#    txo.list[[i]] <- SCTransform(txo.list[[i]], verbose = FALSE)
+#}
+
+txo <- SCTransform(txo, verbose = FALSE)
+
+#txo.features <- SelectIntegrationFeatures(object = txo, nfeatures = 3000)
+#txo <- PrepSCTIntegration(object = txo, anchor.features = txo.features, verbose = FALSE)
+
+#txo.anchors <- FindIntegrationAnchors(object = txo, normalization.method = "SCT", anchor.features = txo.features, verbose = FALSE)
+#txo.integrated <- IntegrateData(anchorset = txo.anchors, normalization.method = "SCT", verbose = FALSE)
+```
+
+Add cell cycle scores to cells
+```{r}
+txo <- CellCycleScoring(object = txo, g2m.features = cc.genes$g2m.genes, s.features = cc.genes$s.genes)
+```
+
+Run PCA and visulize results
+```{r}
+tx <- RunPCA(object = txo)
+
+DimHeatmap(object = tx, dims = 1, cells = 500, balanced = TRUE)
+
+```
+Select cells in an intermediate state based on PCA
+```{r}
+#ploting known markers of primed and non-resistant state
+FeaturePlot(object = tx, features = c("NGFR","EGFR","AXL","SOX10","MITF"), reduction = "pca" ,pt.size = 1, combine = FALSE, order = TRUE)
+
+#see two major clusters identify two major cells states so capture cells in between to see cells in an intermediate that may be transitioning
+#intcells<-tx@reductions$pca@cell.embeddings[,1] <= 5 & tx@reductions$pca@cell.embeddings[,1] >= -45
+#tx$intcell<-intcells
+#tx$intcell[tx$intcell == "TRUE"]<-"int"
+#tx$intcell[tx$intcell == "FALSE"]<-"ni"
+#DimPlot(tx, reduction = "pca",group.by = "intcell")
+```
+
+
+
+
+Run UMAP
+```{r, fig.height=5, fig.width=7}
+tx <- FindNeighbors(object = tx, dims = c(1:20))
+tx <- FindClusters(object = tx, resolution = .5)
+tx <- RunUMAP(object = tx, dims = c(1:20))
+```
+
+Plot UMAP
+```{r, fig.height=6, fig.width=10}
+
+#show clusters in UMAP
+DimPlot(tx, reduction = "umap",dims = c(1,2), group.by = 'seurat_clusters', pt.size = 2)
+
+#show batch effect between replicates was removed
+#DimPlot(object = tx, reduction = 'umap', group.by = "rep",pt.size = 2)
+
+# show intermediate cells
+#DimPlot(object = tx, reduction = 'umap', group.by = "intcell",pt.size = 2)
+
+#Plot gene expression in UMAP space
+#need to switch back to RNA assay and perform Normalization and scaling for DE or plotting genes as suggested here: https://github.com/satijalab/seurat/issues/2023
+DefaultAssay(object = tx) <- "RNA"
+tx<-NormalizeData(tx)
+tx<- ScaleData(tx)
+
+#Plot gene expression
+FeaturePlot(object = tx, reduction = 'umap',features = c("FN1","DDIT3","ATF4","CEBPB","NGFR","EGFR"), pt.size = 2, combine = FALSE, order = TRUE)
+
+FeaturePlot(object = tx, reduction = 'umap',features = c("TP63","KRT8","KRT14","SHH"), pt.size = 2, combine = FALSE, order = TRUE)
+
+```
+
+
+Determine most differentially expressed genes between non-resistant and primed state
+```{r}
+#lable major clusters as non-resistant (nres) and primed (determined by published markers genes)
+tx$clusterID <- as.character(tx$seurat_clusters)
+tx$clusterID[tx$clusterID == "2" | tx$clusterID == "8" | tx$clusterID == "9"] <- "primed"
+tx$clusterID[tx$clusterID != "primed"] <- "nres"
+
+# make clusterID default lable
+Idents(tx)<-tx$clusterID
+
+#add cluser id information to intermdediate cells
+tx$intcell_id<-tx$intcell
+tx$intcell_id[tx$clusterID == "primed" & tx$intcell_id != "int"] <- "primed"
+tx$intcell_id[tx$clusterID == "nres" & tx$intcell_id != "int"] <- "nres"
+tx$intcell_id[tx$clusterID == "primed" & tx$intcell_id == "int"] <- "int_primed"
+tx$intcell_id[tx$clusterID == "nres" & tx$intcell_id == "int"] <- "int_nres"
+
+#identify differentially expressed genes
+primedMarker<- FindMarkers(object = tx, ident.1 = "primed", ident.2 = "nres", min.pct = 0.25)
+View(primedMarker)
+```
+
+Try dimensionality reduction using a different method called PHATE
+```{r}
+library("phateR")
+
+#get gene expression matrix
+pdat <- as.data.frame(t(tx@assays$RNA@scale.data))
+
+
+# Run Phate
+phate <- phate(pdat)
+
+#put phate embedding back in the Seurat object
+PE<-as.matrix(phate$embedding)
+rownames(PE)<-rownames(tx@reductions$umap@cell.embeddings)
+colnames(PE)<-c("PHATE_1","PHATE_2")
+tx@reductions[["phate"]] <- CreateDimReducObject(embeddings = PE, key = "PHATE_", assay = DefaultAssay(tx))
+```
+
+Plot Phate 
+```{r}
+
+GENES <- c("EGFR","NGFR","AXL","FN1","SOX10","MITF","MGP","SERPINE2","NTM","CEBPD","A2M")
+
+for (gene in GENES) {
+  mid<-median(tx@assays$SCT@scale.data[which(rownames(tx@assays$SCT@scale.data) == gene),])
+  print(FeaturePlot(object = tx, reduction = 'phate',features = gene, pt.size = 2, order = TRUE)+ xlim(-.02,.045)+ ylim(-.014,.014)+scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))+DarkTheme())
+}
+
+#show phate
+DimPlot(tx, reduction = "phate",dims = c(1,2), group.by = 'seurat_clusters', pt.size = 2)
+
+#show intermediate cells in phate
+DimPlot(object = tx, reduction = 'phate', group.by = "intcell_id",pt.size = 2)
+
+```
+To avoid needing to do the time consuming processing create and RDS file and read it in for future analysis
+```{r}
+#maker RDS file
+#saveRDS(tx, file = "/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/sample1_R/210423_RAR020_str10xBarcodes_normalized_sample1.rds")
+
+#export normalized RNA counts for SCENIC analysis
+#write.csv(t(tx@assays$SCT@scale.data), "/Users/guillaumeharmange/Documents/pySCENIC/SCENIC_inputs/filtBatchCorGeneExpMat.csv")
+
+#load in RDS file for future analysis
+tx<-readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/sample1_R/210423_RAR020_str10xBarcodes_normalized_sample1.rds")
+```
+
+
+Look at distribution of Lineages
+```{r, fig.height=7, fig.width=13}
+
+VlnPlot(object = tx, features = c("nFeature_lineage", "nCount_lineage", "nFeature_lineage"), ncol = 3)
+FeatureScatter(object = tx, feature1 = "nFeature_lineage", feature2 = "nCount_lineage") 
+
+
+VlnPlot(object = txo, features = c("nFeature_lineage", "nCount_lineage", "nFeature_lineage"), ncol = 3)
+FeatureScatter(object = txo, feature1 = "nFeature_lineage", feature2 = "nCount_lineage") 
+```
+
+
+
+
+
+LETS CHECK those Lineages 
+```{r}
+# make data frame of lineage data counts
+df_all <- as.data.frame(tx@assays$lineage@counts)
+df_all_o <- as.data.frame(txo@assays$lineage@counts)
+
+```
+
+```{r}
+#df_all <- df_all_o
+# Binarize data to see barcodes per cell
+df_binary <- df_all
+df_binary[df_binary>0] <- 1
+```
+
+
+- Look at global distributions
+```{r}
+# Find cells with at least 20 barcodes
+barcode_counts_in_cells <- colSums(df_all)
+barcodes_in_cells <- colSums(df_binary)
+hist(barcode_counts_in_cells,breaks = 100)
+hist(barcodes_in_cells,breaks = 1000)
+
+barcodes_in_cells_20 <- barcodes_in_cells[barcodes_in_cells>= 20]
+hist(barcodes_in_cells_20,breaks = 100)
+
+
+
+cell_to_look_at = c("AAACCCAAGACCAACG-1","AAACCCAAGATAACGT-1","AAACCCAAGTCAGCCC-1","AAACCCAAGTTGCCTA-1","AAACCCACAAAGTATG-1","AAACCCACAAGCCTGC-1","AAACCCACACAGACGA-1","AAACCCACACCCTAGG-1","AAACCCACACTTGTCC-1","GCTGCAGCATCGTGCG-1","TAACACGCATGACTAC-1","TTGCTGCGTCCGACGT-1","AAAGTGACAGTTCACA-1","AAAGTGATCACCATCC-1","AAAGTGATCGTTGCCT-1","AAAGTGATCTTTGATC-1","AAATGGAAGCAAGGAA-1","AAATGGAAGGCACGAT-1","AAATGGAAGGCTCTAT-1","AAATGGAAGGGTTAGC-1","AAATGGAAGTCACTCA-1","AAATGGACAAAGTATG-1","AAATGGACAACACGTT-1","AAATGGAGTAAGCAAT-1","AAATGGAGTAGACAGC-1","AAATGGATCCATTTCA-1","AAATGGATCCGGACTG-1","AAATGGATCGGCTGGT-1","AACAAAGCAGATACCT-1","AACAAAGCAGGCGATA-1","AACAAAGGTCGCTCGA-1","AACAAAGGTTGGACCC-1")
+
+
+cell_to_look_at <- names(barcodes_in_cells_20)[1:100]
+# show cells to look at
+#barcodes_in_cells_20[cell_to_look_at]
+barplot(table(txo$nFeature_lineage))
+```
+
+
+- Look at barcode distribution on a single cell basis
+```{r}
+pdf("/Users/raul/Desktop/20210427_barcode_counts_of_a_cell_barcode_in_other_cells_lessthan_20.pdf",width=18,height=10)
+
+# Look at the distribution of barcode counts of a cell
+cell_ID <- colnames(df_all)
+lin_ID <- rownames(df_all)
+
+for (i in 1:length(cell_to_look_at)){
+  # Barcode counts in a cell
+  a <- which(sapply(cell_ID , function(cell_ID ) cell_to_look_at[i] %in% cell_ID ))
+  barcode_counts_of_a_cell <- df_all[df_all[,a]>0,a] #remove zeros
+  barcode_counts_of_a_cell <- sort(barcode_counts_of_a_cell,decreasing = TRUE)
+  barplot(barcode_counts_of_a_cell,
+          xlab="Barcode counts in a cell",
+          main=cell_to_look_at[i],
+          names.arg= toString(length(barcode_counts_of_a_cell))
+          )
+  
+  # Barcode_show_up_in_other_cells
+  index_order <- order(barcode_counts_of_a_cell)
+  lin_in_cell <- df_binary[df_binary[,a]>0,]
+  lin_in_cell <- rowSums(lin_in_cell)
+  lin_in_cell <- lin_in_cell[index_order] # order based on the counts on OG cell
+  barplot(lin_in_cell,
+          xlab="Barcode_show_up_in_other_cells",
+          main=cell_to_look_at[i],
+          names.arg= toString(length(barcode_counts_of_a_cell))
+          )
+
+  # Barcode_show_up_in_other_cells
+  index_order <- order(barcode_counts_of_a_cell)
+  lin_in_cell <- df_all[df_all[,a]>0,]
+  lin_in_cell <- rowSums(lin_in_cell)
+  lin_in_cell <- lin_in_cell[index_order] # order based on the counts on OG cell
+  barplot(lin_in_cell,
+          xlab="Barcode_counts_show_up_in_other_cells",
+          main=cell_to_look_at[i],
+          names.arg= toString(length(barcode_counts_of_a_cell))
+          )
+}
+
+dev.off()
+```
+
+
+- fake data to explain 
+```{r}
+pdf("/Users/raul/Desktop/20210427_pipeline_works.pdf",width=18,height=10)
+
+
+# Barcode counts in a cell
+a <- c(1)
+fake_df <- matrix(c(1,2,3,4,5,6,7,8,0,0),nrow=5)
+dimnames(fake_df) <- list(One=letters[1:5], Two=LETTERS[1:2] )
+
+fake_df_b <- fake_df
+fake_df_b[fake_df_b>0] <- 1
+
+lin_ID <- rownames(fake_df)
+lin_ID_cell_i <- lin_ID[fake_df[,a]>0]
+
+
+
+
+barcode_counts_of_a_cell <- fake_df[fake_df[,a]>0,a] #remove zeros
+barcode_counts_of_a_cell <- sort(barcode_counts_of_a_cell,decreasing = TRUE)
+barplot(barcode_counts_of_a_cell,
+        xlab="Barcode counts in a cell",
+        main=cell_to_look_at[i],
+        names.arg= toString(length(barcode_counts_of_a_cell))
+        )
+
+# Barcode_with high countshow_up_in_other_cells
+index_order <- order(barcode_counts_of_a_cell)
+lin_in_cell <- fake_df_b[fake_df_b[,a]>0,]
+lin_in_cell <- rowSums(lin_in_cell)
+lin_in_cell <- lin_in_cell[index_order] # order based on the counts on OG cell
+barplot(lin_in_cell,
+        xlab="Barcode_show_up_in_other_cells",
+        main=cell_to_look_at[i],
+        names.arg= toString(length(barcode_counts_of_a_cell))
+        )
+
+# Barcode_show_up_in_other_cells
+index_order <- order(barcode_counts_of_a_cell)
+lin_in_cell <- fake_df[fake_df[,a]>0,]
+lin_in_cell <- rowSums(lin_in_cell)
+lin_in_cell <- lin_in_cell[index_order] # order based on the counts on OG cell
+barplot(lin_in_cell,
+        xlab="Barcode_counts_show_up_in_other_cells",
+        main=cell_to_look_at[i],
+        names.arg= toString(length(barcode_counts_of_a_cell))
+        )
+dev.off()
+```
+
+
+- Look at dominant barcodes
+```{r}
+
+df_top_B <- matrix(0, length(df_all[,1]), length(df_all[1,])) 
+
+hold_max <- c()
+hold_max_indx <- c()
+for (i in 1:length(df_all[1,])){
+  hold_max <- append(hold_max,max(df_all[,i]) )
+  hold_max_indx <- append(hold_max_indx,which.max(df_all[,i]) )
+  
+  df_top_B[hold_max_indx[i],i] <- 1
+  
+  
+}
+plot_top_B <- rowSums(df_top_B)
+plot_top_B <- plot_top_B[plot_top_B >1]
+barplot(sort(plot_top_B),names.arg= toString(length(plot_top_B)))
+
+```
+
+
+- Look at dominant barcodes for one cell (fake data)
+```{r}
+
+# Barcode counts in a cell
+a <- c(1) # pick a cell
+fake_df <- matrix(c(1,0,3,4,0,6,7,8,0,0),nrow=5)
+dimnames(fake_df) <- list(One=letters[1:5], Two=LETTERS[1:2] )
+
+fake_df_b <- fake_df
+fake_df_b[fake_df_b>0] <- 1
+
+lin_ID <- rownames(fake_df)
+lin_ID_cell_i <- lin_ID
+
+
+
+barcode_counts_of_a_cell <- fake_df[fake_df[,a] >0,a] 
+index_max_counts_of_a_cell <- which.max(barcode_counts_of_a_cell)
+
+barcode_counts_of_a_cell_sort <- sort(barcode_counts_of_a_cell,decreasing = TRUE)
+barplot(barcode_counts_of_a_cell_sort,
+        xlab="Barcode counts in a cell",
+        main=cell_to_look_at[1],
+        names.arg= toString(sum(barcode_counts_of_a_cell_sort>0))
+        )
+
+
+# Get max barcode on all cells
+remove_max_df <- fake_df
+
+hold_max_indx <- apply(fake_df, 2, function(x) which.max(x))
+
+barcode_counts_of_a_cell <- fake_df[,a]
+index_max_counts_of_a_cell <- which.max(barcode_counts_of_a_cell)
+
+other_cells_with_barcode_max <- c()
+cnt = 1
+for (i in which(fake_df[,a] >0)){
+  if (cnt == 1){
+    other_cells_with_barcode_max <- append(other_cells_with_barcode_max, sum(hold_max_indx == index_max_counts_of_a_cell) -1) # -1 for the first one since it includes itself
+    cnt = 1 +cnt
+  }else{
+    other_cells_with_barcode_max <- append(other_cells_with_barcode_max, sum(hold_max_indx == index_max_counts_of_a_cell)) 
+  }
+  
+  barcode_counts_of_a_cell[index_max_counts_of_a_cell] <- 0 #remove max
+  index_max_counts_of_a_cell <- which.max(barcode_counts_of_a_cell)
+}
+barplot(other_cells_with_barcode_max)
+
+
+```
+
+
+
+
+- Look at dominant barcodes for one cell
+```{r}
+
+pdf("/Users/raul/Desktop/20210428_dominant_barcodes_in_other_cells_greater_20.pdf",width=18,height=10)
+
+barplot(table(txo$nFeature_lineage),
+          xlab="Barcode in cells",
+          main="Before preprocessing",
+          )
+
+hist(barcodes_in_cells,breaks = 500,
+          xlab="Barcode in cells",
+          main="After preprocessing",
+          )
+
+# Look at the distribution of barcode counts of a cell
+cell_ID <- colnames(df_all)
+lin_ID <- rownames(df_all)
+
+# Barcode counts in a cell
+hold_max_indx <- apply(df_all, 2, function(x) which.max(x))
+for (n in 1:length(cell_to_look_at)){
+  
+  a <- which(sapply(cell_ID , function(cell_ID ) cell_to_look_at[n] %in% cell_ID )) # pick a cell
+  
+  barcode_counts_of_a_cell <- df_all[df_all[,a] >0,a] # only want to plot barcodes that are expressed
+  barcode_counts_of_a_cell_sort <- sort(barcode_counts_of_a_cell,decreasing = TRUE)
+  barplot(barcode_counts_of_a_cell_sort,
+          xlab="Barcode counts in a cell",
+          main=cell_to_look_at[n],
+          names.arg= toString(sum(barcode_counts_of_a_cell_sort>0))
+          )
+  
+  barcode_counts_of_a_cell <- df_all[,a]
+  index_max_counts_of_a_cell <- which.max(barcode_counts_of_a_cell)
+  
+    # Get max barcode on all cells
+  
+  other_cells_with_barcode_max <- c()
+  cnt = 1
+  for (i in which(df_all[,a] >0)){
+    if (cnt == 1){
+      other_cells_with_barcode_max <- append(other_cells_with_barcode_max, sum(hold_max_indx == index_max_counts_of_a_cell)) # -1 for the first one since it includes itself
+      cnt = 1 + cnt
+    }else{
+      other_cells_with_barcode_max <- append(other_cells_with_barcode_max, sum(hold_max_indx == index_max_counts_of_a_cell)) 
+    }
+    
+    barcode_counts_of_a_cell[index_max_counts_of_a_cell] <- 0 #remove max
+    index_max_counts_of_a_cell <- which.max(barcode_counts_of_a_cell)
+  }
+  # 
+  barplot(other_cells_with_barcode_max,
+          xlab="Barcode max in other cells",
+          main=cell_to_look_at[n],
+          names.arg= toString(sum(barcode_counts_of_a_cell_sort>0))
+          )
+}
+dev.off()
+```
+
+```{r}
+lf1 <- ncol(df_all)/ncol(df_all_o)
+paste("Preprocessing  => ",lf1*100)
+```
+
+
+- Look at dominant barcodes for 100 s
+```{r}
+
+df_all_g <- df_all
+df_all_g[df_all_g<=10] <- 0
+
+#remove cells with no barcode counts >= 10
+df_all_g <- df_all_g[,colSums(df_all_g)>0]
+
+lf1 <- ncol(df_all_g)/ncol(df_all)
+paste("Counts > 10  => ",lf1*100)
+
+# Look at the distribution of barcode counts of a cell
+cell_ID <- colnames(df_all_g)
+lin_ID <- rownames(df_all_g)
+
+cell_to_look_at  <- names(df_all_g)[1:100]
+
+# max Barcode counts in all cells
+hold_max_indx <- apply(df_all_g, 2, function(x) which.max(x))
+```
+
+```{r}
+
+pdf("/Users/raul/Desktop/20210428_dominant_barcodes_in_other_cells_greater_20_greater_10counts.pdf",width=18,height=10)
+
+
+barplot(table(txo$nFeature_lineage),
+          xlab="Barcode in cells",
+          main="Before preprocessing",
+          )
+
+hist(barcodes_in_cells,breaks = 500,
+          xlab="Barcode in cells",
+          main="After preprocessing",
+          )
+
+
+for (n in 1:length(cell_to_look_at)){
+  
+  a <- which(sapply(cell_ID , function(cell_ID ) cell_to_look_at[n] %in% cell_ID )) # pick a cell
+  
+  barcode_counts_of_a_cell <- df_all_g[df_all_g[,a] >0,a] # only want to plot barcodes that are expressed
+  barcode_counts_of_a_cell_sort <- sort(barcode_counts_of_a_cell,decreasing = TRUE)
+  barplot(barcode_counts_of_a_cell_sort,
+          xlab="Barcode counts in a cell",
+          main=cell_to_look_at[n],
+          names.arg= toString(sum(barcode_counts_of_a_cell_sort>0))
+          )
+  
+  barcode_counts_of_a_cell <- df_all_g[,a]
+  index_max_counts_of_a_cell <- which.max(barcode_counts_of_a_cell)
+  
+    # Get max barcode on all cells
+  
+  other_cells_with_barcode_max <- c()
+  cnt = 1
+  for (i in which(df_all_g[,a] >0)){
+    if (cnt == 1){
+      other_cells_with_barcode_max <- append(other_cells_with_barcode_max, sum(hold_max_indx == index_max_counts_of_a_cell)) # -1 for the first one since it includes itself
+      cnt = 1 + cnt
+    }else{
+      other_cells_with_barcode_max <- append(other_cells_with_barcode_max, sum(hold_max_indx == index_max_counts_of_a_cell)) 
+    }
+    
+    barcode_counts_of_a_cell[index_max_counts_of_a_cell] <- 0 #remove max
+    index_max_counts_of_a_cell <- which.max(barcode_counts_of_a_cell)
+  }
+  # 
+  barplot(other_cells_with_barcode_max,
+          xlab="Barcode max in other cells",
+          main=cell_to_look_at[n],
+          names.arg= toString(sum(barcode_counts_of_a_cell_sort>0))
+          )
+}
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Look at the distribution of barcode counts of a cell
+cell_ID <- colnames(df_all)
+lin_ID <- rownames(df_all)
+
+for (i in 1:length(cell_to_look_at)){
+  a <- which(sapply(cell_ID , function(cell_ID ) cell_to_look_at[i] %in% cell_ID ))
+  barcode_counts_of_a_cell <- df_all[,a]
+  barcode_counts_of_a_cell <- barcode_counts_of_a_cell[barcode_counts_of_a_cell>0] #remove zeros
+  barplot(sort(barcode_counts_of_a_cell,decreasing = TRUE),
+          xlab="No preprocessing Barcode counts in a cell",
+          main=cell_to_look_at[i],
+          names.arg= toString(length(barcode_counts_of_a_cell))
+          )
+}
+
+```
+
+Assign a lineage to each cell
+
+
+```{r}
+#based on this table we see large majority of barcoded cells have betwen 1 and 7 barcodes
+table(tx$nFeature_lineage)
+#keep cells where ar barcode was detected
+txl <- subset(tx, subset = nFeature_lineage > 0 ) # only lower limit
+#percent of cells kept after this filter
+cf2 <- txl@assays$lineage@counts@Dim[2]/tx@assays$lineage@counts@Dim[2]
+paste("cf2 = ",cf2*100)
+# make data frame of lineage data 
+ldfo <- as.data.frame(txl@assays$lineage@counts)
+
+
+#XX <- ldfo[rowSums(ldfo) > 1,]
+#YY <- rowSums(XX)
+#hist(YY,breaks = 100)
+
+
+# only keep lineages that appear in more than one cell
+ldf <- ldfo[rowSums(ldfo) > 20,]
+
+for (i in 1:ncol(ldf)){
+  
+  d <- which.max(ldf[,i])
+  d_keep <- ldf[d,i]
+  
+  ldf[,i] <- 0
+  ldf[d,i] <- d_keep 
+}
+#percent of lineages kept after this filter
+lf1 <- nrow(ldf)/nrow(ldfo)
+paste("lf1 = ",lf1*100)
+
+
+
+# only keep lineages that appear in more than one cell
+ldf <- ldfo[rowSums(ldfo) > 20,]
+#percent of lineages kept after this filter
+lf1 <- nrow(ldf)/nrow(ldfo)
+paste("lf1 = ",lf1*100)
+
+is.na(ldfo) <- ldfo==0 & ldfo==1
+bb <- colMeans(ldfo, na.rm=TRUE)
+paste("mean barcodes in a cell= ", mean(bb))
+```
+
+Mam <- matrix(c(1,0,2,3,0,6), nrow = 2, ncol = 3,)
+Mam
+# only keep lineages that appear in more than one cell
+Mam1 <- Mam[rowSums(Mam) > 1,]
+Mam1
+d <- which.max(Mam1[,1])
+d_keep <- Mam1[d,1]
+
+Mam1[,1] <- 0
+Mam1[d,1] <- d_keep 
+
+#percent of lineages kept after this filter
+lf1 <- nrow(Mam1)/nrow(Mam)
+paste("lf1 = ",lf1*100)
+
+
+CC = 0
+cc = c(1,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)
+for (i in 1:length(cc)){
+  CC = append(CC,sum(ldfo_OG > cc[i]))
+}
+CC1 <- CC[2:length(cc)]
+cc1 <-cc[2:length(cc)]
+plot(cc1,CC1)
+
+
+
+CC = 0
+for (i in 1:ncol(ldfo_OG)){
+  CC = append(CC,ldfo_OG[,i])
+}
+
+```{r}
+df_all <- as.data.frame(tx@assays$lineage@counts)
+```
+
+```{r}
+#based on this table we see large majority of barcoded cells have betwen 1 and 7 barcodes
+table(tx$nFeature_lineage)
+#keep cells where ar barcode was detected
+txl <- subset(tx, subset = nFeature_lineage > 0 & nFeature_lineage < 100 )
+#percent of cells kept after this filter
+cf2 <- txl@assays$lineage@counts@Dim[2]/tx@assays$lineage@counts@Dim[2]
+paste("cf2 = ",cf2*100)
+# make data frame of lineage data 
+ldfo <- as.data.frame(txl@assays$lineage@counts)
+
+
+#XX <- ldfo[rowSums(ldfo) > 1,]
+#YY <- rowSums(XX)
+#hist(YY,breaks = 100)
+
+# only keep lineages that appear in more than one cell
+ldf <- ldfo[rowSums(ldfo) > 1,]
+ldf_f <- ldf
+
+for (i in 1:ncol(ldf)){
+  d_keep <- c()
+  for (j in 1:1){
+    d <- which.max(ldf_f[,i])
+
+    d_keep <- append(d_keep, d)
+    
+    ldf_f[d,i] <- 0
+
+  }
+  
+  ldf[-d_keep,i] <- 0
+}
+
+
+
+#percent of lineages kept after this filter
+lf1 <- nrow(ldf)/nrow(ldfo)
+paste("lf1 = ",lf1*100)
+
+
+ldfo<-ldf
+#remove lineages that are too big to make sense (128 or more cells (7 divisions))
+ldft<-ldf
+ldft[ldft > 0 ]<- 1 
+rs <- as.vector(rowSums(ldft ))
+ldf<- ldf[which(rs <= 200),]
+
+#percent of lineages kept after this filter
+lf3 <- nrow(ldf)/nrow(ldfo)
+paste("lf3 = ",lf3*100)
+
+#ldf<-ldfo
+#Identify barcodes in the cell
+fam <- list()
+for (i in 1:ncol(ldf)){
+  fam[[i]] <- which(ldf[,i] > 0)
+}
+
+#number of barcodes in each cell as list
+fl <- lengths(fam)
+#largest number of barcodes in a family
+mfl <- max(fl)
+# This loop identifies lineages that are made up of cells with more than one barcode
+for (cfl in 2:mfl) {
+  #identify cells with cfl number of barcodes
+  for (i in 1:length(fam)) {
+    if (fl[i] == cfl) {
+      #determine if a given cobination of barcodes found in a cell appears 5 or more times
+      fs<-c()
+      for (j in 1:length(fam)) {
+        if (sum(fam[[i]] %in%fam[[j]]) == length(fam[[i]])) {
+          fs <- append(fs, 1)
+        }
+      }
+      #if the barode combination appears 5 or more times make it so any cell that has any of those barcodes is called one family with the first barcode of the original cell
+      if (length(fs) >= 2) {
+        for (j in 1:length(fam)) {
+          if (sum(fam[[i]] %in%fam[[j]]) > 0) {
+            fam[[j]] <- fam[[i]][1]
+          }
+        }
+        #assign first barcode of original cell to itself
+        fam[[i]] <- fam[[i]][1]
+      }
+    }
+  }
+}
+
+
+
+#Convert the fam list generated above into a matrix
+#make ldf a matrix of zeroes and fill out using indicies in fam list
+ldf[]<-0
+for (i in 1:length(fam)) {
+  if (length(fam[[i]]) > 0) {
+    for (j in 1:length(fam[[i]])) {
+      ldf[fam[[i]][j],i] <- 1
+    }  
+  }
+}
+
+
+#determine which cells have 1 bc
+obc <- colnames(ldf)[which(colSums(ldf) == 1)]
+paste("obc = ", length(obc))
+#determine what the cells will be final seurat object and which lineages will still qualify after cell filter
+tldf<-ldf
+tldf<-tldf[,obc]
+rs <- as.vector(rowSums(tldf))
+
+#ldf_RAR <- ldf[which(colSums(ldf) != 1)]
+#rs <- as.vector(rowSums(ldf_RAR))
+
+#filter ldf lineages based on what the lineages will be after removing cells
+ldf_RAR<- ldf[which(rs <= 200 & rs >= 2),]
+
+#determine percent of lineages kept after filter
+lf4 <- nrow(ldf_RAR)/nrow(ldfo)
+paste("lf4 = ",lf4*100)
+
+#after lineages are removed again determine what cells have 1 bc still
+obc <- colnames(ldf_RAR)[which(colSums(ldf_RAR) == 1)]
+# add filtered lineage data to seurat object
+txl[['flineage']] <- CreateAssayObject(counts = ldf_RAR)
+
+#remove cells that have more than one bc
+txl<-subset(txl, cells = obc) # nothing
+
+# make a meta data vector that assingns a lineage to each cell
+ldf<-as.data.frame(txl@assays$flineage@counts)
+clin<-c()
+for (i in 1:ncol(ldf)) {
+ clin <- append(clin, rownames(ldf)[which( ldf[,i] > 0)]) 
+}
+
+txl$lin <- clin
+
+```
+```{r}
+pdf("/Users/raul/Desktop/LineageTypes.pdf",width=18,height=10)
+DimPlot(txl, reduction = "umap", group.by = "lin", pt.size = 2) + NoLegend() 
+dev.off()
+```
+
+```{r}
+hold_linname <- txl@meta.data$lin
+uni_1 <- unique(txl@meta.data$lin)
+mMm <- c()
+for (i in uni_1) {
+  pop <- sum(txl@meta.data$lin == i)
+  mMm <- append(mMm,pop)
+  
+  if (pop < 6){
+    hold_linname[txl@meta.data$lin == i] <- "S5"
+  } else if (pop < 11){
+    hold_linname[txl@meta.data$lin == i]<- "S10"
+  } else if (pop < 21){
+    hold_linname[txl@meta.data$lin == i]<- "S20"
+  } else if (pop < 31){
+    hold_linname[txl@meta.data$lin == i]<- "S30"
+  } else if (pop < 41){
+    hold_linname[txl@meta.data$lin == i]<- "S40"
+  } else if (pop < 100){
+    hold_linname[txl@meta.data$lin == i]<- "S50"
+  }
+}
+hist(mMm, breaks = 40)
+hold_linname
+
+txl$lin_divided <- hold_linname
+```
+
+```{r}
+pdf("/Users/raul/Desktop/LineageTypes_divided.pdf",width=18,height=10)
+DimPlot(txl, reduction = "umap", group.by = "lin_divided", pt.size = 2) 
+dev.off()
+```
+
+
+Identify lineages as non-resistant, primed, or crossing
+```{r}
+lt<-as.data.frame(cbind(txl$clusterID,txl$lin, vector(,length(txl$clusterID))))
+flt <- c()
+colnames(lt)<-c("type","lin","lt")
+allin<-unique(txl$lin)
+for (clin in allin) {
+  ind <- which(lt$lin == clin)
+  ut <- unique(lt[ind,"type"])
+  if (length(ut) < 2) {
+    if (ut == "nres") {
+      lt[ind,"lt"] <- "nl"
+      }
+    else{
+      lt[ind,"lt"] <- "pl"  
+    }
+    }
+  else{
+      lt[ind,"lt"] <- "cl"
+    
+  }
+  
+}
+
+# save as cross identity (crID)
+txl$crID <- lt$lt
+
+# this is a sanity check, we should see a lot more primed lineages come form wells where we sorted primed cells and a lot more non-resistant lineages in the wells we sorted a mixed populaiont
+print("origins of primed lineages")
+table(txl$well[which(txl$crID == "pl")])
+print("origins of non-resistaht lineages")
+table(txl$well[which(txl$crID== "nl")])
+```
+
+Based on what well the cell came from we can have a good guess at its state at the start of the experiment, this can give us the directionality of crossing
+```{r, fig.height=6, fig.width=10}
+# determine start state based on well
+txl$startID <- txl$well
+txl$startID[txl$startID == 1 | txl$startID == 2 | txl$startID == 5 | txl$startID == 6] <- "E"
+txl$startID[txl$startID !="E"] <- "M"
+
+#add directionality to crID in dir_crID
+txl$dir_crID <- txl$crID
+txl$dir_crID[txl$crID == "cl" & txl$startID == "E"] <- "ctnl"
+txl$dir_crID[txl$crID == "cl" & txl$startID == "M"] <- "ctpl"
+
+#disitinguish what cluster cells are in in dir_criID
+txl$dir_crID[txl$dir_crID == "ctpl" & txl$clusterID == "nres"] <- "ctpl_n"
+txl$dir_crID[txl$dir_crID == "ctpl" & txl$clusterID == "primed"] <- "ctpl_p"
+txl$dir_crID[txl$dir_crID == "ctnl" & txl$clusterID == "nres"] <- "ctnl_n"
+txl$dir_crID[txl$dir_crID == "ctnl" & txl$clusterID == "primed"] <- "ctnl_p"
+
+# plot resulting clusters
+
+DimPlot(object = txl, reduction = 'umap', group.by = "dir_crID",pt.size = 1, label = TRUE)
+
+
+#make data frame used by Abhi to do modeling on stability on each state
+x<-rbind(txl$lin,txl$crID,txl$dir_crID,txl$intcell)
+
+
+
+#since there are a lot of lineages crossing to the primed state in the non resistant cluster (ctpl_n) this makes is hard to find differences between non-resistant lineges and ctpl_n.
+#To bypass this issue we look for ctpl_n cells that belong to lineges that have a lot of cells (here >= to 20% of cells ) in the primed state, indicating the cells in the non-resistant cluster are in a more "transition like" gene expression state
+ctpl <- unique(txl$lin[which(txl$dir_crID == "ctpl_n" | txl$dir_crID == "ctpl_p")])
+#create this higher res view of lineages
+txl$hr_dir_crID <- txl$dir_crID
+for (l in ctpl) {
+  ind <- which(txl$lin == l)
+  clid <- txl$clusterID[ind]
+  pct <- (sum(clid == "primed")/(sum(clid == "nres")+sum(clid == "primed")))*100
+  if (pct >= 10) {
+    for (i in ind) {
+      if (txl$dir_crID[i] == "ctpl_n") {
+        txl$hr_dir_crID[i] <- "ctpl_n_s"
+      }
+    }
+  }
+}
+
+# do the same for cells going to primed state
+ctnl <- unique(txl$lin[which(txl$dir_crID == "ctnl_n" | txl$dir_crID == "ctnl_p")])
+#create this higher res view of lineages
+txl$hr_dir_crID2 <- txl$dir_crID
+for (l in ctnl) {
+  ind <- which(txl$lin == l)
+  clid <- txl$clusterID[ind]
+  pct <- (sum(clid == "nres")/(sum(clid == "nres")+sum(clid == "primed")))*100
+  if (pct >= 15) {
+    for (i in ind) {
+      if (txl$dir_crID[i] == "ctnl_p") {
+        txl$hr_dir_crID2[i] <- "ctnl_p_s"
+      }
+    }
+  }
+}
+# plot resulting clusters
+
+DimPlot(object = txl, reduction = 'umap', group.by = "hr_dir_crID2",pt.size = 1, label = TRUE)
+
+txl$tst <- txl$hr_dir_crID2
+
+txl$tst[txl$hr_dir_crID2 != "ctnl_p_s"] <- "grey"
+DimPlot(object = txl, reduction = 'umap', group.by = "tst",pt.size = 1, label = TRUE)
+DimPlot(object = tx, reduction = 'umap', group.by = "seurat_clusters",pt.size = 1, label = TRUE)
+DimPlot(object = tx, reduction = 'phate', group.by = "seurat_clusters",pt.size = 1, label = TRUE)
+DimPlot(object = tx, reduction = 'phate', group.by = "Phase",pt.size = 1, label = TRUE)
+DimPlot(object = tx, reduction = 'umap', group.by = "Phase",pt.size = 1, label = TRUE)
+
+```
+
+Show the different Lineage types
+```{r}
+txl$ctp <- txl$hr_dir_crID
+txl$ctp_s <- txl$hr_dir_crID
+txl$ctn <- txl$hr_dir_crID
+txl$nl <- txl$hr_dir_crID
+txl$pl <- txl$hr_dir_crID
+
+txl$ctp[txl$ctp == 'ctpl_n' | txl$ctp == 'ctpl_p' | txl$ctp == 'ctpl_n_s'] <- 'ctp'
+txl$ctp[txl$ctp != 'ctp'] <- 'n'
+
+DimPlot(txl, reduction = "umap", group.by = "ctp")
+
+txl$ctp_s[txl$ctp_s == 'ctpl_p' | txl$ctp_s == 'ctpl_n_s'] <- 'ctp_s'
+txl$ctp_s[txl$ctp_s != 'ctp_s'] <- 'n'
+
+DimPlot(txl, reduction = "umap", group.by = "ctp_s")
+
+txl$ctn[txl$ctn == 'ctnl_p' | txl$ctn == 'ctnl_n'] <- 'ctn'
+txl$ctn[txl$ctn != 'ctn'] <- 'n'
+
+DimPlot(txl, reduction = "umap", group.by = "ctn")
+
+txl$nl[txl$nl == 'nl'] <- 'nl'
+txl$nl[txl$nl != 'nl'] <- 'n'
+
+DimPlot(txl, reduction = "umap", group.by = "nl")
+
+txl$pl[txl$pl == 'pl'] <- 'pl'
+txl$pl[txl$pl != 'pl'] <- 'n'
+
+
+pdf("/Users/guillaumeharmange/Desktop/FigForSyd/LineageTypes.pdf",width=18,height=10)
+DimPlot(txl, reduction = "umap", group.by = "ctp", pt.size = 2) + ggtitle('Lineages Where Cells Cross to Primed State')
+DimPlot(txl, reduction = "umap", group.by = "ctp_s", pt.size = 2) + ggtitle('Lineages Where Cells Cross to Primed State')
+DimPlot(txl, reduction = "umap", group.by = "ctn", pt.size = 2) + ggtitle('Lineages Where Cells Cross to Non-resistant State')
+DimPlot(txl, reduction = "umap", group.by = "nl", pt.size = 2) + ggtitle('Lineages Where Cells Stay in the Non-resistant State')
+DimPlot(txl, reduction = "umap", group.by = "pl", pt.size = 2) + ggtitle('Lineages Where Cells Stay in The Non-resistant State')
+dev.off()
+```
+
+To avoid needing to do the time consuming processing create and RDS file and read it in for future analysis
+```{r}
+#maker RDS file
+saveRDS(txl, file = "/Users/guillaumeharmange/Box/Shared_Guillaume/SingleCellTranscriptome_lineage/AnalysisScript/Final10X1anlysis/10X1_Filterd_BatchCor_unnorm_sctrans_lin.rds")
+
+#load in RDS file for future analysis
+txl<-readRDS("/Users/guillaumeharmange/Box/Shared_Guillaume/SingleCellTranscriptome_lineage/AnalysisScript/Final10X1anlysis/10X1_Filterd_BatchCor_unnorm_sctrans_lin.rds")
+
+#export for modeling by Abhi
+modeldf<- as.data.frame(rbind(txl$lin,txl$dir_crID,txl$intcell_id), row.names = c("Lineage","CrossingID","IntermediateID"))
+write.csv(modeldf,"/Users/guillaumeharmange/Desktop/summarytablev2.csv")
+
+
+```
+
+Find differntially expressed genes between the types of lineages in different states
+```{r}
+
+Idents(txl) <- txl$hr_dir_crID
+ctpl_n_sVSnl <- FindMarkers(object = txl, ident.1 = "ctpl_n_s", ident.2 = c("nl"), min.pct = 0.25)
+write.csv(ctpl_n_sVSnl,"/Users/guillaumeharmange/Box/Shared_Guillaume/SingleCellTranscriptome_lineage/AnalysisScript/Final10X1anlysis/ctpl_n_sVSnl.csv")
+ctnl_pVSpl<-FindMarkers(object = txl, ident.1 = "ctnl_p", ident.2 = c("pl"), min.pct = 0.25)
+write.csv(ctnl_pVSpl,"/Users/guillaumeharmange/Box/Shared_Guillaume/SingleCellTranscriptome_lineage/AnalysisScript/Final10X1anlysis/ctnl_pVSpl.csv")
+ctnl_nVSnl<-FindMarkers(object = txl, ident.1 = "ctnl_n", ident.2 = c("nl"), min.pct = 0.25)
+write.csv(ctnl_nVSnl,"/Users/guillaumeharmange/Box/Shared_Guillaume/SingleCellTranscriptome_lineage/AnalysisScript/Final10X1anlysis/ctnl_nVSnl.csv")
+ctpl_nVSctnl_n<-FindMarkers(object = txl, ident.1 = "ctpl_n", ident.2 = c("ctnl_n"), min.pct = 0.25)
+write.csv(ctpl_nVSctnl_n,"/Users/guillaumeharmange/Box/Shared_Guillaume/SingleCellTranscriptome_lineage/AnalysisScript/Final10X1anlysis/ctpl_nVSctnl_n.csv")
+
+
+x<-FindMarkers(object = txl, ident.1 = c("ctnl_p_s"), ident.2 = c("ctnl_p","pl","ctpl_p"), min.pct = 0.25)
+View(x)
+
+View(ctpl_n_sVSnl)
+View(ctnl_pVSpl)
+View(ctnl_nVSnl)
+View(ctpl_nVSctnl_n)
+```
+
+
+```{r, fig.height=6, fig.width=10}
+FeaturePlot(object = tx, features = c("SMAD6","SMAD7","SMAD2","SMAD3"), pt.size = 2, combine = FALSE, order = TRUE)
+```
+Plot a Heat map showing differential gene expression in intermediate cells
+```{r, fig.height=6, fig.width=10}
+library(gplots)
+library(data.table)
+color4heatmap <- rev(brewer.pal(11,'RdYlBu'))
+
+#get matrix with all cells and gense in genes
+hmm<-tx@assays$SCT@data
+
+#genes to use in heatmap
+genes<-c("FN1","NFATC2", "EGFR","SERPINE2", "CEBPD")
+
+#make gene expression matrix with only the genes of interest
+gind<-c()
+for (i in genes) {
+   tmp <- which(tx@assays$SCT@data@Dimnames[[1]] == i)
+   gind <- append(gind,tmp)
+}
+hmm<- as.matrix(hmm[gind,])
+
+#establish column order
+c<-as.data.frame(tx$intcell_id)
+colorder<-c[order(c),,drop = FALSE]
+#set column order
+hmm2<-setcolorder(as.data.frame(hmm), rownames(colorder))
+
+#order colors for columns
+hmcol<-sort(as.character(tx$intcell_id))
+hmcol[hmcol == "nres"] <- "grey"
+hmcol[hmcol == "int_primed" & hmcol == "int_nres"] <- "purple"
+hmcol[hmcol == "primed"] <- "green"
+
+
+
+#pdf("/Users/guillaumeharmange/Desktop/heatmap_c_vs_nc.pdf",width=18,height=10)
+gplots::heatmap.2(x = as.matrix(hmm2), scale = 'none',col = (color4heatmap),trace = 'none',Colv = FALSE, dendrogram = 'row', cexRow = 1)
+            
+#dev.off()
+
+```

@@ -1,0 +1,1086 @@
+---
+title: "Untitled"
+author: "Raul A. Reyes Hueros"
+date: "10/9/2023"
+output: html_document
+---
+
+import necessary pacakges
+```{r,echo=FALSE}
+#using Seurat version 3.2.2
+library(qlcMatrix)
+library(Seurat)
+library(ggplot2)
+library(RColorBrewer)
+```
+
+```{r}
+
+seurat_obj <-readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes.rds")
+
+```
+
+
+```{r}
+# Using Seurat for Cell Cycle Scoring
+s.genes <- c("MCM5", "PCNA", "TYMS", "FEN1", "MCM2", "MCM4", "RRM1", "UNG", "GINS2", "MCM6", "CDCA7", "DTL", "PRIM1", "UHRF1", "MLF1IP", "HELLS", "RFC2", "RPA2", "NASP", "RAD51AP1", "GMNN", "WDR76", "SLBP", "CCNE2", "UBR7", "POLD3", "MSH2", "ATAD2", "RAD51", "RRM2", "CDC45", "CDC6", "EXO1", "TIPIN", "DSCC1", "BLM", "CASP8AP2", "USP1", "CLSPN", "POLA1", "CHAF1B", "BRIP1", "E2F8")
+g2m.genes <- c("HMGB2", "CDK1", "NUSAP1", "UBE2C", "BIRC5", "TPX2", "TOP2A", "NDC80", "CKS2", "NUF2", "CKS1B", "MKI67", "TMPO", "CENPF", "TACC3", "FAM64A", "SMC4", "CCNB2", "OIP5", "CCNB1", "AURKB", "DUSP6", "DLGAP5", "CDCA3", "CDCA2", "CDCA8", "ECT2", "KIF23", "HMMR", "AURKA", "PSRC1", "ANP32E", "TUBB4B", "GTSE1", "KIF20B", "HJURP", "CDC20", "TTK", "CDC25C", "KIF2C", "RANGAP1", "NCAPD2", "DLGAP5", "CDCA7", "NEK2", "G2E3", "SET", "RAD21", "ACIN1")
+
+seurat_obj <- CellCycleScoring(seurat_obj, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+
+# Regress out cell cycle effects
+seurat_obj <- ScaleData(seurat_obj, vars.to.regress = c("S.Score", "G2M.Score"), features = rownames(seurat_obj))
+```
+
+```{r}
+saveRDS(seurat_obj, file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Cell_cycle.rds")
+
+```
+
+```{r}
+seurat_obj_not_regressed = readRDS("/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Cell_cycle/Cell_cycle.rds")
+
+seurat_obj_regressed = readRDS("/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Cell_cycle_fulldata_20231214.rds")
+
+```
+
+```{r}
+seurat_obj_old = readRDS("/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR020/Final_Seurat_object/210724_RAR020_str10xbarcodes_both_lanes.rds")
+```
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/Cell_cycle/10x_OG_labels.pdf")
+
+
+
+FeaturePlot(seurat_obj, features = "S.Score", pt.size = 0.5)
+
+# Plotting G2M.Score on UMAP
+FeaturePlot(seurat_obj, features = "G2M.Score", pt.size = 0.5)
+
+
+
+
+
+dev.off()
+```
+
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/IF_equivalent/10x_KRT14.pdf")
+
+
+
+
+#FeaturePlot(seurat_obj, features = c('KRT14'))+ scale_colour_gradientn(colours = rev(brewer.pal(n = 10, name = "Spectral")))
+
+
+#FeaturePlot(seurat_obj, features = c('KRT14'),
+#            pt.size = .1,  cols = c("grey","blue","red","red"))
+
+VlnPlot(seurat_obj, features = c('KRT14'), split.by = "clusterID", group.by = "clusterID", pt.size = 0.1, combine = FALSE,cols = c("darkblue","darkgreen"))
+
+
+dev.off()
+
+
+```
+
+
+```{r}
+#seurat_obj <- seurat_obj[,seurat_obj$clusterID != 'other']
+```
+
+```{r}
+seurat_obj <- FindClusters(seurat_obj, resolution = 1)
+
+DimPlot(seurat_obj, group.by = "seurat_clusters",pt.size = .5)
+
+
+
+
+Idents(seurat_obj) <- seurat_obj$seurat_clusters
+DimPlot(seurat_obj, reduction = "umap")
+
+
+new.cluster.ids <- c("Less Proliferative","Highly Proliferative","Less Proliferative","Highly Proliferative","Highly Proliferative","Highly Proliferative","Less Proliferative","Less Proliferative","Less Proliferative","Highly Proliferative","Less Proliferative","Highly Proliferative")
+
+names(new.cluster.ids) <- levels(seurat_obj)
+p_s<- seurat_obj
+p_s <- RenameIdents(p_s, new.cluster.ids)
+DimPlot(p_s, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()+
+        scale_color_manual(values = c("darkblue","darkgreen","grey")) 
+
+
+seurat_obj$seurat_clusters_highless <- Idents(p_s)
+
+```
+
+
+```{r}
+saveRDS(seurat_obj, file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Cell_cycle_fulldata_20231214.rds")
+
+```
+
+```{r}
+seurat_obj = readRDS("/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/py_Modeling/Simulations_reviewers/Cell_cycle_fulldata_20231214.rds")
+```
+
+```{r}
+
+```
+
+
+
+```{r}
+Idents(seurat_obj) <- seurat_obj$seurat_clusters_highless
+differential.genes <- FindMarkers(seurat_obj,ident.1 = "Highly Proliferative", ident.2 = "Less Proliferative",  min.pct = 0, 
+  logfc.threshold = 0)
+
+```
+
+#save table 
+```{r}
+write.csv(differential.genes, "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/DGE/20240112_DGE_regressed_cellcycle.csv")
+
+differential.genes <- read.csv("/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/DGE/20240112_DGE_regressed_cellcycle.csv")
+```
+
+
+```{r}
+
+# Filter for entries with p_val_adj < 0.05
+filtered_data <- filter(differential.genes, p_val_adj < 0.05)
+
+# If no entries with p_val_adj < 0.05, use the original data
+if (nrow(filtered_data) == 0) {
+  filtered_data <- data
+}
+
+# Select the top 2 highest avg_log2FC values
+top_2 <- filtered_data %>% 
+  arrange(desc(avg_log2FC)) %>%
+  head(25)
+
+# Select the bottom 2 lowest avg_log2FC values
+bottom_2 <- filtered_data %>% 
+  arrange(avg_log2FC) %>%
+  head(25)
+
+# Combine top 2 and bottom 2 into the same table
+combined <- rbind(top_2, bottom_2)
+
+# Print the combined table
+print(combined)
+
+# Change the first column name to 'Gene'
+colnames(combined)[1] <- "Gene"
+
+write.csv(combined, "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/DGE/20240112_DGE_regressed_cellcycle_top25_bot25.csv")
+```
+
+```{r}
+library(ggplot2)
+
+# Set the thresholds
+pval_threshold <- 0.05
+
+log2FC_threshold <- .5
+
+# Add a column for gene names using row names
+differential.genes$gene <- rownames(differential.genes)
+
+# Create the base volcano plot
+volcano_plot <- ggplot(differential.genes, aes(x=avg_log2FC, y=-log10(p_val))) + 
+    geom_point(aes(color = p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+               size = 1.5, shape = 16) + 
+    scale_color_manual(values = c("black", "red")) +
+    xlab("Log2 Fold Change") + ylab("-Log10 P-value") +
+    theme_minimal() +
+    theme(legend.position="none")#+ ylim(0, 400)
+
+
+# Add gene labels for those that pass the threshold
+volcano_plot <- volcano_plot + 
+    geom_text(data = subset(differential.genes, p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+              aes(label = gene), 
+              vjust = 1.5, 
+              hjust = -0.5, 
+              size = 3, 
+              check_overlap = FALSE)+
+        geom_vline(xintercept=c(-log2FC_threshold, log2FC_threshold), col="red",alpha = 0.5) +
+        geom_hline(yintercept=-log2(pval_threshold), col="red",alpha = 0.5) 
+
+#pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/volcanoplot/20240113_volcano.pdf")
+
+print(volcano_plot)
+#dev.off()
+```
+
+
+```{r, echo=FALSE}
+
+
+# Positive
+sub_df <- subset(differential.genes, p_val < pval_threshold & avg_log2FC > log2FC_threshold)
+
+# Find genes that start with "UB" in the positive_hit_list
+ub_genes_in_hits <- grep("^UB", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HIST_genes_in_hits <- grep("^HIST", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HSP_genes_in_hits <- grep("^HSP", rownames(sub_df), value = TRUE)
+
+
+
+# Exclude these genes from the positive_hit_list
+sub_df <- sub_df[!rownames(sub_df) %in% ub_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HIST_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HSP_genes_in_hits, ]
+
+
+positive_hit_list <- head(sub_df[order(sub_df$avg_log2FC, decreasing = TRUE), ], 26)
+
+#positive_hit_list <- positive_hit_list[positive_hit_list$gene != "MKI67" & positive_hit_list$gene != "TPX2" ,]
+
+
+# Negative
+sub_df <- subset(differential.genes, p_val < pval_threshold & avg_log2FC < -log2FC_threshold)
+
+# Find genes that start with "UB" in the positive_hit_list
+ub_genes_in_hits <- grep("^UB", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HIST_genes_in_hits <- grep("^HIST", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HSP_genes_in_hits <- grep("^HSP", rownames(sub_df), value = TRUE)
+
+
+
+# Exclude these genes from the positive_hit_list
+sub_df <- sub_df[!rownames(sub_df) %in% ub_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HIST_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HSP_genes_in_hits, ]
+
+
+negative_hit_list <- head(sub_df[order(sub_df$avg_log2FC, decreasing = FALSE), ], 26)
+
+
+```
+
+
+
+
+
+
+```{r}
+
+
+# Rerun PCA on the scaled data
+seurat_obj <- RunPCA(seurat_obj, features = VariableFeatures(object = seurat_obj))
+
+# Find neighbors based on the new PCA
+seurat_obj <- FindNeighbors(seurat_obj, dims = 1:10)
+
+# Run UMAP on the new neighborhood graph
+seurat_obj <- RunUMAP(seurat_obj, dims = 1:10)
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/Cell_cycle/all_cells/UMAP_clusterIDs.pdf",   # The directory you want to save the file in
+    width = 4, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+# Plot the new UMAP
+DimPlot(seurat_obj, group.by = "clusterID",pt.size = .5)+
+        scale_color_manual(values = c("darkblue","darkgreen")) 
+
+DimPlot(seurat_obj, group.by = "colonyID_old",pt.size = .5)+
+        scale_color_manual(values = c("darkblue","darkgreen","grey")) 
+
+DimPlot(seurat_obj, group.by = "seurat_clusters",pt.size = .5)
+
+DimPlot(seurat_obj, group.by = "seurat_clusters_highless",pt.size = .5)+
+        scale_color_manual(values = c("darkblue","darkgreen")) 
+            
+#DefaultAssay(object = seurat_obj) <- "length_family_fullID_trusted"
+FeaturePlot(object = seurat_obj,
+                          features = "family_fullID",
+                          pt.size = 1,
+                          #combine = TRUE,
+                          order = TRUE,
+            cols = c("grey","red")) & 
+  scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu"))) 
+
+dev.off()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+Plot large and small colonies
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/representative_clones/large_clones.pdf")
+
+get_colonies <- table(seurat_obj$lin)
+get_colonies_name <- rownames(get_colonies)
+
+
+plot.list <- c()
+cnt <- 0                                                                                                                                                                                            
+for (i in unique(seurat_obj$lin[as.vector(seurat_obj$nCount_length_family_fullID_equal >= 80)] ) ){ #80
+  cnt <- 1 + cnt
+  #lable major clusters
+  seurat_obj$lin_example <- as.character(seurat_obj$seurat_clusters)
+  
+  seurat_obj$lin_example[seurat_obj$lin == i] <- "Yes"
+  
+  seurat_obj$lin_example[seurat_obj$lin_example != "Yes"] <- "No"
+  
+   plot.list[[cnt]] <- DimPlot(seurat_obj, group.by = "lin_example", pt.size = 1,
+        order = c("Yes","No"))+
+  scale_color_manual(values = c("grey","darkblue"))+
+  labs(color = paste("Colony ID" , as.character(i), " size", as.character(get_colonies[i])) )
+  
+}
+plot.list
+
+dev.off()
+
+
+```
+
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/representative_clones/small_clones.pdf")
+
+get_colonies <- table(seurat_obj$lin)
+get_colonies_name <- rownames(get_colonies)
+
+
+plot.list <- c()
+cnt <- 0                                                                                                                        
+
+
+
+for (i in c('2480', '2475', '2137', '2048', '2018', '181','315', '406') ){
+  cnt <- 1 + cnt
+  #lable major clusters
+  seurat_obj$lin_example <- as.character(seurat_obj$seurat_clusters)
+  
+  seurat_obj$lin_example[seurat_obj$lin == i] <- "Yes"
+  
+  seurat_obj$lin_example[seurat_obj$lin_example != "Yes"] <- "No"
+  
+   plot.list[[cnt]] <- DimPlot(seurat_obj, group.by = "lin_example", pt.size = 1,
+        order = c("Yes","No"))+
+  scale_color_manual(values = c("grey","darkgreen"))+
+  labs(color = paste("Colony ID" , as.character(i), " size", as.character(get_colonies[i])) )
+  
+}
+plot.list
+
+dev.off()
+
+
+```
+
+
+
+
+# Rank ordered crossing lineages
+```{r}
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+clone_count <- table(seurat_obj$lin)
+
+# Filter to keep only clones with more than 7 cells
+filtered_clones <- clone_count[clone_count > 10]
+
+# Vectors provided 
+x <- seurat_obj$seurat_clusters_highless[seurat_obj$lin %in% names(filtered_clones)]
+#x <- seurat_obj$colonyID_old[seurat_obj$lin %in% names(filtered_clones)]
+y <- as.numeric(seurat_obj$lin[seurat_obj$lin %in% names(filtered_clones)])
+
+# Create a data frame
+data <- data.frame(Group = y, Behavior = x)
+
+# Calculating the percentage of each behavior in each group
+grouped_data <- data %>%
+  group_by(Group) %>%
+  count(Behavior) %>%
+  mutate(Percentage = n / sum(n) * 100) %>%
+  ungroup()
+
+# Remove groups with 100% in one behavior
+#grouped_data <- grouped_data %>%
+#  group_by(Group) %>%
+#  filter(all(Percentage < 100)) %>%
+#  ungroup()
+
+# Calculating the total count per group for ordering (if needed)
+group_order <- grouped_data %>%
+  group_by(Group) %>%
+  summarise(Total = sum(n)) %>%
+  arrange(desc(Total)) %>%
+  ungroup()
+
+# Plotting (if there are any groups left to plot)
+if(nrow(group_order) > 0) {
+  ggplot(grouped_data, aes(fill = Behavior, y = Percentage, x = factor(Group, levels = group_order$Group))) + 
+    geom_bar(position = 'stack', stat = 'identity') +
+    labs(x = 'Clones', y = 'Percentage (%)', fill = 'Behavior') +
+    ggtitle('All clones') +
+    theme_minimal()
+} else {
+  print("All groups have 100% in one behavior and have been removed.")
+}
+
+```
+
+```{r}
+
+
+# Vectors provided
+x <- c('Highly Proliferative', 'Less Proliferative', 'Highly Proliferative', 'Highly Proliferative', 'Less Proliferative')
+y <- c('1', '1', '2', '4', '4') # just names for the groups
+
+clone_count <- table(seurat_obj$lin)
+
+# Filter to keep only clones with more than 7 cells
+filtered_clones <- clone_count[clone_count > 1]
+
+# Vectors provided 
+x <- seurat_obj$seurat_clusters_highless[seurat_obj$lin %in% names(filtered_clones)]
+#x <- seurat_obj$colonyID_old[seurat_obj$lin %in% names(filtered_clones)]
+y <- seurat_obj$lin[seurat_obj$lin %in% names(filtered_clones)]
+
+
+# Combine data into a data frame
+data <- data.frame(x, y)
+
+# Calculate the percentage of each x category within each y group
+data <- data %>%
+  group_by(y, x) %>%
+  summarise(count = n()) %>%
+  mutate(total = sum(count), percentage = count / total * 100) %>%
+  ungroup()
+
+# Remove groups where the percentage is 100%
+data <- data %>%
+  group_by(y) %>%
+  filter(n() > 1) %>%
+  ungroup()
+
+# Order y groups based on the sum of the counts
+data <- data %>%
+  mutate(y = reorder(y, count, FUN = sum))
+
+# Plot the stacked bar plot with percentages
+ggplot(data, aes(fill=x, y=percentage, x=y)) +
+  geom_bar(position="fill", stat="identity") +
+  ylab("Percentage") +
+  xlab("Group") +
+  theme_minimal() +
+  scale_fill_brewer(palette="Set1") +
+  labs(fill="Category")
+```
+
+
+```{r}
+
+# Vectors provided
+x <- c('Highly Proliferative', 'Less Proliferative', 'Highly Proliferative', 'Highly Proliferative', 'Less Proliferative', 'Less Proliferative', 'Less Proliferative')
+y <- c('1', '1', '2', '4', '4','5','6') # just names for the groups
+
+
+
+# Vectors provided 
+x <- seurat_obj$seurat_clusters_highless
+#x <- seurat_obj$colonyID_old[seurat_obj$lin %in% names(filtered_clones)]
+y <- seurat_obj$lin
+
+N <- colnames(seurat_obj@assays$RNA@data)
+
+
+# Combine data into a data frame
+data <- data.frame(x, y, N)
+
+# Calculate the percentage of each x category within each y group, preserving column names
+data <- data %>%
+  group_by(y, x) %>%
+  summarise(count = n(), .names_to = "N") %>%  # Add .names_to argument here
+  mutate(total = sum(count), percentage = count / total * 100) %>%
+  ungroup()
+
+# Remove groups where the percentage is 100% (and there's more than one category)
+data <- data %>%
+  group_by(y) %>%
+  filter(!(n() == 1 & percentage == 100)) %>%
+  ungroup()
+
+# Create a sorting variable based on the percentage of 'Highly Proliferative'
+sorting_variable <- data %>%
+  filter(x == "Highly Proliferative") %>%
+  select(y, percentage)
+
+# Add a default value for groups that don't have 'Highly Proliferative'
+sorting_variable <- right_join(sorting_variable, data.frame(y = unique(data$y)), by = "y")
+sorting_variable[is.na(sorting_variable)] <- 0
+
+# Merge sorting variable back into the data
+data <- merge(data, sorting_variable, by = "y", suffixes = c("", "_HP"))
+
+# Order y groups based on the percentage of 'Highly Proliferative'
+data <- data %>%
+  mutate(y = reorder(y, -percentage_HP))
+
+#pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/representative_clones/barcodes_ratios.pdf")
+
+# Plot the stacked bar plot with specified colors
+ggplot(data, aes(fill=x, y=percentage, x=y)) +
+  geom_bar(position="fill", stat="identity") +
+  ylab("Percentage") +
+  xlab("Group") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Highly Proliferative" = "darkblue", 
+                               "Less Proliferative" = "darkgreen")) +
+  labs(fill="Category")
+
+dev.off()
+```
+
+
+# transitioning cells DGE
+```{r}
+
+x <- seurat_obj$seurat_clusters_highless
+#x <- seurat_obj$colonyID_old[seurat_obj$lin %in% names(filtered_clones)]
+y <- seurat_obj$lin
+
+N <- colnames(seurat_obj@assays$RNA@data)
+
+
+# Combine data into a data frame
+data <- data.frame(x, y, N)
+
+# Calculate the percentage of each x category within each y group, preserving column names
+data <- data %>%
+  group_by(y, x) %>%
+  summarise(count = n(), .names_to = "N") %>%  # Add .names_to argument here
+  mutate(total = sum(count), percentage = count / total * 100) %>%
+  ungroup()
+
+# Remove groups where the percentage is 100% (and there's more than one category)
+data <- data %>%
+  group_by(y) %>%
+  filter(!(n() == 1 & percentage == 100)) %>%
+  ungroup()
+
+for (lin_ in unique(data$y) ){
+  
+  print(lin_)
+  
+}
+
+
+A <- y
+
+B<-N
+
+C<-unique(data$y)
+# Identify indices of values in A that match values in C
+matching_indices <- which(A %in% C)
+
+# Extract corresponding names from B
+selected_names <- B[matching_indices]
+
+# Print the selected names
+#print(selected_names)
+
+
+length(selected_names)
+seurat_obj$transitioningID <- as.character(seurat_obj$seurat_clusters_highless)
+hold <- seurat_obj$transitioningID
+
+cnt <- 1
+for (i in selected_names){
+  
+  
+  hold[N == i] <- 'transitioning'
+}
+seurat_obj$transitioningID <- hold
+
+
+
+
+
+
+
+```
+
+
+```{r}
+
+Idents(seurat_obj) <- seurat_obj$transitioningID
+differentialHigh.genes <- FindMarkers(seurat_obj,ident.1 = "Highly Proliferative", ident.2 = "transitioning",  min.pct = 0, logfc.threshold = 0)
+differentialLess.genes <- FindMarkers(seurat_obj,ident.1 = "Less Proliferative", ident.2 = "transitioning",  min.pct = 0,logfc.threshold = 0)
+
+library(ggplot2)
+
+# Set the thresholds
+pval_threshold <- 0.05
+
+log2FC_threshold <- .5
+
+# Add a column for gene names using row names
+differentialHigh.genes$gene <- rownames(differentialHigh.genes)
+
+# Create the base volcano plot
+volcano_plot <- ggplot(differentialHigh.genes, aes(x=avg_log2FC, y=-log10(p_val))) + 
+    geom_point(aes(color = p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+               size = 1.5, shape = 16) + 
+    scale_color_manual(values = c("black", "red")) +
+    xlab("Log2 Fold Change") + ylab("-Log10 P-value") +
+    theme_minimal() +
+    theme(legend.position="none")#+ ylim(0, 400)
+
+
+# Add gene labels for those that pass the threshold
+volcano_plot <- volcano_plot + 
+    geom_text(data = subset(differentialHigh.genes, p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+              aes(label = gene), 
+              vjust = 1.5, 
+              hjust = -0.5, 
+              size = 3, 
+              check_overlap = FALSE)+
+        geom_vline(xintercept=c(-log2FC_threshold, log2FC_threshold), col="red",alpha = 0.5) +
+        geom_hline(yintercept=-log2(pval_threshold), col="red",alpha = 0.5) 
+
+#pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/volcanoplot/20240113_volcano.pdf")
+
+print(volcano_plot)
+#dev.off()
+```
+
+
+```{r}
+
+
+Idents(seurat_obj) <- seurat_obj$transitioningID
+differentialHigh.genes <- FindMarkers(seurat_obj,ident.1 = "Highly Proliferative", ident.2 = "transitioning",  min.pct = 0, logfc.threshold = 0)
+differentialLess.genes <- FindMarkers(seurat_obj,ident.1 = "Less Proliferative", ident.2 = "transitioning",  min.pct = 0,logfc.threshold = 0)
+
+library(ggplot2)
+
+# Set the thresholds
+pval_threshold <- 0.05
+
+log2FC_threshold <- .5
+
+# Add a column for gene names using row names
+differentialHigh.genes$gene <- rownames(differentialHigh.genes)
+
+# Create the base volcano plot
+volcano_plot <- ggplot(differentialHigh.genes, aes(x=avg_log2FC, y=-log10(p_val))) + 
+    geom_point(aes(color = p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+               size = 1.5, shape = 16) + 
+    scale_color_manual(values = c("black", "red")) +
+    xlab("Log2 Fold Change") + ylab("-Log10 P-value") +
+    theme_minimal() +
+    theme(legend.position="none")+ xlim(-1, 1)+ ylim(0, 300)
+
+
+# Add gene labels for those that pass the threshold
+volcano_plot <- volcano_plot + 
+    geom_text(data = subset(differentialHigh.genes, p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+              aes(label = gene), 
+              vjust = 1.5, 
+              hjust = -0.5, 
+              size = 3, 
+              check_overlap = FALSE)+
+        geom_vline(xintercept=c(-log2FC_threshold, log2FC_threshold), col="red",alpha = 0.5) +
+        geom_hline(yintercept=-log2(pval_threshold), col="red",alpha = 0.5) 
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/Transitioning_clones/Highly_transitioning_1.pdf")
+
+print(volcano_plot)
+dev.off()
+
+
+
+
+
+
+library(ggplot2)
+
+# Set the thresholds
+pval_threshold <- 0.05
+
+log2FC_threshold <- .5
+
+# Add a column for gene names using row names
+differentialLess.genes$gene <- rownames(differentialLess.genes)
+
+# Create the base volcano plot
+volcano_plot <- ggplot(differentialLess.genes, aes(x=avg_log2FC, y=-log10(p_val))) + 
+    geom_point(aes(color = p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+               size = 1.5, shape = 16) + 
+    scale_color_manual(values = c("black", "red")) +
+    xlab("Log2 Fold Change") + ylab("-Log10 P-value") +
+    theme_minimal() +
+    theme(legend.position="none")+ xlim(-1, 1)
+    
+
+# Add gene labels for those that pass the threshold
+volcano_plot <- volcano_plot + 
+    geom_text(data = subset(differentialLess.genes, p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+              aes(label = gene), 
+              vjust = 1.5, 
+              hjust = -0.5, 
+              size = 3, 
+              check_overlap = FALSE)+
+        geom_vline(xintercept=c(-log2FC_threshold, log2FC_threshold), col="red",alpha = 0.5) +
+        geom_hline(yintercept=-log2(pval_threshold), col="red",alpha = 0.5) 
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/Transitioning_clones/Less_transitioning_1.pdf")
+print(volcano_plot)
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Before 20231214
+```{r}
+FeaturePlot(seurat_obj, features = "S.Score", pt.size = 0.5)
+
+# Plotting G2M.Score on UMAP
+FeaturePlot(seurat_obj, features = "G2M.Score", pt.size = 0.5)
+```
+
+```{r}
+seurat_obj <- FindClusters(seurat_obj, resolution = 0.5)
+Idents(seurat_obj) <- seurat_obj$seurat_clusters
+DimPlot(seurat_obj, reduction = "umap")
+
+
+new.cluster.ids <- c("Committed", "Expanding", "Expanding", "Committed","Expanding", "Committed",
+    "Committed", "Committed")
+
+names(new.cluster.ids) <- levels(seurat_obj)
+p_s<- seurat_obj
+p_s <- RenameIdents(p_s, new.cluster.ids)
+DimPlot(p_s, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
+```
+
+```{r}
+A <- seurat_obj$seurat_clusters
+
+# Create a named vector where names are original values and values are new labels
+labels <- setNames(c('Expanding', 'Expanding', 'Expanding', 'Committed', 'Committed', 'Committed', 'Committed', 'Committed'), c(1, 2, 4,0,3,5,6,7))
+
+# Replace elements of A using the labels vector
+A <- labels[as.character(A)]
+```
+
+```{r}
+B <- seurat_obj$orig.ident
+cnt = 0
+for (a in A){
+  cnt = cnt + 1
+  B[cnt] <- a  
+}
+
+seurat_obj[['colonyID_new']] <- B
+
+```
+
+
+
+```{r}
+
+DimPlot(seurat_obj, reduction = "umap")
+
+
+```
+
+
+
+```{r}
+FeaturePlot(txl, features = c('TERT'))
+
+FeaturePlot(seurat_obj_old, features = c('TERT'),
+            pt.size = .1, combine = FALSE, order = TRUE, cols = c("grey", "blue","red"))
+VlnPlot(txl, features = c('TERT'), pt.size = 0.1, combine = FALSE, group.by = 'clusterID')
+
+
+
+```
+
+```{r echo=FALSE, message=FALSEE, warning = FALSE}
+#df_fam_1 <- df_fam[,colnames(df_fam) %in% colnames(txl)]
+
+ki67_lin <- c()
+fn1_lin <- c()
+dkk1_lin <- c()
+krt14_lin <- c()
+pro_non_lin <- c()
+lin_length <- c()
+
+
+lin <- txl$lin
+lin_picked <- unique(lin)
+
+important.terms = c("MKI67","FN1","DKK1","KRT14")
+
+indcs = which(rownames(txl@assays$SCT@counts) %in% important.terms)
+sparse.matrix.filtered <- txl@assays$SCT@counts[indcs, , drop=F]
+
+for (i in 1:length(lin_picked)){
+
+    ki67_lin <- append(ki67_lin,  mean(sparse.matrix.filtered["MKI67",][lin %in% lin_picked[i]]))
+    fn1_lin <- append(fn1_lin,   mean(sparse.matrix.filtered["FN1",][lin %in% lin_picked[i]]))
+    dkk1_lin <- append(dkk1_lin,  mean(sparse.matrix.filtered["DKK1",][lin %in% lin_picked[i]]))
+    krt14_lin <- append(krt14_lin,  mean(sparse.matrix.filtered["KRT14",][lin %in% lin_picked[i]]))
+    lin_length <- append(lin_length,as.vector(txl$family_fullID_equal[lin %in% lin_picked[i]][1]))
+
+
+}
+
+df_pro_non <- data.frame(Ki67 = ki67_lin,
+                         FN1 = fn1_lin,
+                         DKK1 = dkk1_lin,
+                         KRT14 = krt14_lin,
+                         Colony_size = lin_length)
+
+```
+
+
+```{r}
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/IF_equivalent/IF_10x_OG_labels_alldata.pdf")
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(Ki67,DKK1)) + 
+   geom_point(aes(colour = Colony_size))+
+  scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Ki67, df_pro_non$DKK1,method = "pearson"),4)), as.character(cor.test(df_pro_non$Ki67, df_pro_non$DKK1)$p.value))   ,
+         x = 'Ki67',
+         y = 'KRT14')+ geom_smooth(method=lm, se=FALSE,mapping = aes(x = Ki67, y = DKK1))+  scale_y_log10() + scale_x_log10()
+
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(Colony_size,KRT14)) + 
+   geom_point()+#aes(colour = Colony_size))+
+  #scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Colony_size, df_pro_non$KRT14,method = "pearson"),4)), as.character(cor.test(df_pro_non$Colony_size, df_pro_non$KRT14)$p.value))   ,
+         x = 'Number of cells per colony',
+         y = 'KRT14')+ geom_smooth(method=lm, se=FALSE,mapping = aes(x = Colony_size, y = KRT14))+  scale_y_log10()#  + scale_x_log10()
+
+
+ggplot(df_pro_non %>% arrange(Colony_size), aes(Colony_size,Ki67)) + 
+   geom_point()+#aes(colour = Colony_size))+
+  #scale_color_gradientn(colours = rainbow(5))+
+  labs(title = paste("Perason: " , as.character(round(cor(df_pro_non$Colony_size, df_pro_non$Ki67,method = "pearson"),4)), as.character(cor.test(df_pro_non$Colony_size, df_pro_non$Ki67)$p.value))   ,
+         x = 'Number of cells per colony',
+         y = 'KI67')+ geom_smooth(method=lm, se=FALSE,mapping = aes(x = Colony_size, y = Ki67))+  scale_y_log10()#  + scale_x_log10()
+
+
+
+dev.off()
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+Idents(seurat_obj) <- seurat_obj$seurat_clusters_highless
+differential.genes <- FindMarkers(seurat_obj,ident.1 = "Highly Proliferative", ident.2 = "Less Proliferative", min.pct = 0.25, assay = "RNA")
+
+```
+
+```{r}
+head(differential.genes[order(differential.genes$p_val),])
+```
+
+```{r}
+library(ggplot2)
+
+# Set the thresholds
+pval_threshold <- 0.05
+
+log2FC_threshold <- .5
+
+# Add a column for gene names using row names
+differential.genes$gene <- rownames(differential.genes)
+
+# Create the base volcano plot
+volcano_plot <- ggplot(differential.genes, aes(x=avg_log2FC, y=-log10(p_val))) + 
+    geom_point(aes(color = p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+               size = 1.5) + 
+    scale_color_manual(values = c("grey", "red")) +
+    xlab("Log2 Fold Change") + ylab("-Log10 P-value") +
+    theme_minimal() +
+    theme(legend.position="none")
+
+library(ggrepel)
+# Add gene labels for those that pass the threshold
+volcano_plot <- volcano_plot + 
+    geom_text_repel(data = subset(differential.genes,p_val < pval_threshold & abs(avg_log2FC) > log2FC_threshold), 
+              aes(label = gene), 
+              vjust = 1.5, 
+              hjust = -0.5, 
+              size = 3, 
+              check_overlap = FALSE)
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/volcanoplot/highless_alldata.pdf")
+
+
+print(volcano_plot)
+
+dev.off()
+```
+
+```{r, echo=FALSE}
+
+
+# Positive
+sub_df <- subset(differential.genes, p_val < pval_threshold & avg_log2FC > log2FC_threshold)
+
+# Find genes that start with "UB" in the positive_hit_list
+ub_genes_in_hits <- grep("^UB", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HIST_genes_in_hits <- grep("^HIST", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HSP_genes_in_hits <- grep("^HSP", rownames(sub_df), value = TRUE)
+
+
+
+# Exclude these genes from the positive_hit_list
+sub_df <- sub_df[!rownames(sub_df) %in% ub_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HIST_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HSP_genes_in_hits, ]
+
+
+positive_hit_list <- head(sub_df[order(sub_df$avg_log2FC, decreasing = TRUE), ], 26)
+
+#positive_hit_list <- positive_hit_list[positive_hit_list$gene != "MKI67" & positive_hit_list$gene != "TPX2" ,]
+
+
+# Negative
+sub_df <- subset(differential.genes, p_val < pval_threshold & avg_log2FC < -log2FC_threshold)
+
+# Find genes that start with "UB" in the positive_hit_list
+ub_genes_in_hits <- grep("^UB", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HIST_genes_in_hits <- grep("^HIST", rownames(sub_df), value = TRUE)
+
+# Find genes that start with "HIST" in the positive_hit_list
+HSP_genes_in_hits <- grep("^HSP", rownames(sub_df), value = TRUE)
+
+
+
+# Exclude these genes from the positive_hit_list
+sub_df <- sub_df[!rownames(sub_df) %in% ub_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HIST_genes_in_hits, ]
+sub_df <- sub_df[!rownames(sub_df) %in% HSP_genes_in_hits, ]
+
+
+negative_hit_list <- head(sub_df[order(sub_df$avg_log2FC, decreasing = FALSE), ], 26)
+
+
+```
+
+
+
+
+
+```{r}
+
+
+pdf(file = "/Volumes/GoogleDrive-101945757574252901453/My Drive/Hueros_Shared/Paper/data/processed/RAR020/IF_equivalent/COL17A1.pdf")
+
+c("DST", "KRT15","HMGB2", "TOP2A",'MKI67',"DSC2", "DSP","SERPINB3","PADI1", "TGM3","MT1G", "RNASE7", "KRT16" )
+VlnPlot(seurat_obj, features = c('COL17A1'), pt.size = 0.1, combine = FALSE)
+
+dev.off()
+```
+
+
+
+
+
+```{r}
+
+FeaturePlot(seurat_obj, features = 'DKK1',
+            pt.size = .1, combine = FALSE, order = TRUE, cols = c("grey", "blue","red"))
+
+```
+
+
+
+
+
+
+
+
+

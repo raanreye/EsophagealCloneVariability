@@ -1,0 +1,232 @@
+---
+title: "RAR021"
+output: html_notebook
+---
+```{r}
+library("reshape")
+library("ggplot2")
+```
+
+```{r}
+temp <- list.files(path='/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/',recursive = T, pattern='*.txt', full.names = TRUE)
+myfiles <- lapply(temp, read.delim)
+list_names <- list.files(path='/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/')
+names(myfiles) <- list_names
+```
+
+```{r}
+R1_10K <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_10K_Rep1/starcode/RAR_10K_Rep1_clusteredBarcodeReads_d8.txt', header = F)
+R1_5K <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_5K_Rep1/starcode/RAR_5K_Rep1_clusteredBarcodeReads_d8.txt', header = F)
+R1_1K <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_1K_Rep1/starcode/RAR_1K_Rep1_clusteredBarcodeReads_d8.txt', header = F)
+R1_500 <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_500_Rep1/starcode/RAR_500_Rep1_clusteredBarcodeReads_d8.txt', header = F)
+R1_100 <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_100_Rep1/starcode/RAR_100_Rep1_clusteredBarcodeReads_d8.txt', header = F)
+
+
+R2_10K <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_10K_Rep2/starcode/RAR_10K_Rep2_clusteredBarcodeReads_d8.txt', header = F)
+R2_5K <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_5K_Rep2/starcode/RAR_5K_Rep2_clusteredBarcodeReads_d8.txt', header = F)
+R2_1K <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_1K_Rep2/starcode/RAR_1K_Rep2_clusteredBarcodeReads_d8.txt', header = F)
+R2_500 <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_500_Rep2/starcode/RAR_500_Rep2_clusteredBarcodeReads_d8.txt', header = F)
+R2_100 <- read.delim('/Users/raul/Box/Shared_Raul/Projects/Proliferative_Senesent/Data/RAR021/RAR021_STR_gDNA_density/repo/analyzed/RAR_100_Rep2/starcode/RAR_100_Rep2_clusteredBarcodeReads_d8.txt', header = F)
+
+```
+
+Reads per million
+```{r}
+rpm_norm <- function(sample){
+  scaling_factor <- sum(sample$V2)/1000000
+  reads_per_million <- data.frame(sample = sample$V1, reads = sample$V2, RPM = sample$V2/scaling_factor)
+  return(reads_per_million)
+}
+```
+
+```{r}
+
+R1_10K <- rpm_norm(R1_10K)
+R1_5K <- rpm_norm(R1_5K)
+R1_1K <- rpm_norm(R1_1K)
+R1_500 <- rpm_norm(R1_500)
+R1_100 <- rpm_norm(R1_100)
+
+R2_10K <- rpm_norm(R2_10K)
+R2_5K <- rpm_norm(R2_5K)
+R2_1K <- rpm_norm(R2_1K)
+R2_500 <- rpm_norm(R2_500)
+R2_100 <- rpm_norm(R2_100)
+
+
+R1_10K <- cbind(ID = rep("R1_10K",nrow(R1_10K)) , R1_10K)
+R1_5K <- cbind(ID = rep("R1_5K",nrow(R1_5K)) , R1_5K)
+R1_1K <- cbind(ID = rep("R1_1K",nrow(R1_1K)) , R1_1K)
+R1_500 <- cbind(ID = rep("R1_500",nrow(R1_500)) , R1_500)
+R1_100 <- cbind(ID = rep("R1_100",nrow(R1_100)) , R1_100)
+
+R2_10K <- cbind(ID = rep("R2_10K",nrow(R2_10K)) , R2_10K)
+R2_5K <- cbind(ID = rep("R2_5K",nrow(R2_5K)) , R2_5K)
+R2_1K <- cbind(ID = rep("R2_1K",nrow(R2_1K)) , R2_1K)
+R2_500 <- cbind(ID = rep("R2_500",nrow(R2_500)) , R2_500)
+R2_100 <- cbind(ID = rep("R2_100",nrow(R2_100)) , R2_100)
+
+```
+
+```{r}
+
+RAR021_df <-  list(R1_10K,R1_5K,R1_1K,R1_500,R1_100  ,  R2_10K,R2_5K,R2_1K,R2_500,R2_100)
+
+```
+
+
+
+################################################################################
+                            Metrics on distributions
+################################################################################
+
+```{r}
+barcode_experiment <- c(10000,5000,1000,500,100,10000,5000,1000,500,100)
+total_barcodes_captured <- c()
+greter1_barcodes_captured <- c()
+
+for (i in c(1,2,3,4,5,6,7,8,9,10)){
+  
+  total_barcodes_captured <- c(total_barcodes_captured, 100*sum(RAR021_df[[i]]$reads>1)/barcode_experiment[i] )
+  
+  
+}
+
+d10k = c(total_barcodes_captured[1],total_barcodes_captured[6])
+d5k = c(total_barcodes_captured[2],total_barcodes_captured[7])
+d1k = c(total_barcodes_captured[3],total_barcodes_captured[8])
+d500 = c(total_barcodes_captured[4],total_barcodes_captured[9])
+d100 = c(total_barcodes_captured[5],total_barcodes_captured[10])
+
+df_ratio = data.frame(d10k,d5k,d1k,d500,d100)
+
+barplot(trunc(total_barcodes_captured[1:4]))
+barplot(trunc(total_barcodes_captured[6:9]))
+
+boxplot(df_ratio[,5:1],
+        xlab = "Initial Barcodes",
+        ylab = "Percent of barcodes captured",
+        main = "STR barcode density ") + geom_smooth(method = "lm", se=TRUE, aes(group=1))
+
+
+
+
+df_ratio = data.frame(value = total_barcodes_captured, 
+                      exp = c(1,2,3,4,1,2,3,4))#colnames(df_ratio)
+ggplot(df_ratio,aes(x=exp,y=value)) + 
+  geom_boxplot(aes(group=exp)) + 
+  geom_smooth(method = lm, formula = y ~ splines::bs(x, 3),se = FALSE)
+
+
+```
+
+
+
+
+
+
+
+
+################################################################################
+                                      Plot
+################################################################################
+
+
+```{r}
+for (i in c(1,2,3,4,5,6,7,8,9,10)){
+  barplot(sort(c(RAR021_df[[i]]$reads[RAR021_df[[i]]$reads>1],
+                 rep(1,barcode_experiment[i]-sum(RAR021_df[[i]]$reads>1))),
+               decreasing = TRUE),
+       main=RAR021_df[[i]]$ID[i],
+       xlab="Reads",
+       beside=TRUE,
+       args.legend=list(x = "topright",
+              title="",
+               bty = "n"),
+       legend = c(paste("Percent captured = ",total_barcodes_captured[i]) )) 
+
+}
+
+```
+
+
+
+
+
+-------------------------------------------------------------------------------
+                                    Remove ones
+
+```{r}
+
+for (i in 1:10){
+  barplot(sort(RAR021_df[[i]]$reads[RAR021_df[[i]]$reads>1]),
+       main=RAR021_df[[i]]$ID[i],
+       xlab="Reads")
+}
+```
+
+
+```{r}
+library(plotly)
+rep1_10k = c(RAR021_df[[1]]$reads)
+rep1_5k  = c(RAR021_df[[2]]$reads)
+rep1_1k  = c(RAR021_df[[3]]$reads)
+rep1_500 = c(RAR021_df[[4]]$reads)
+rep1_100 = c(RAR021_df[[5]]$reads)
+rep2_10k = c(RAR021_df[[6]]$reads)
+rep2_5k  = c(RAR021_df[[7]]$reads)
+rep2_1k  = c(RAR021_df[[8]]$reads)
+rep2_500 = c(RAR021_df[[9]]$reads)
+rep2_100 = c(RAR021_df[[10]]$reads)
+
+rep1_name <- c(rep("rep1_10k",length(rep1_10k)),
+             rep("rep1_5k",length(rep1_5k)),
+             rep("rep1_1k",length(rep1_1k)),
+             rep("rep1_500",length(rep1_500)),
+             rep("rep1_100",length(rep1_100)) )
+
+rep2_name <- c(rep("rep2_10k",length(rep2_10k)),
+             rep("rep2_5k",length(rep2_5k)),
+             rep("rep2_1k",length(rep2_1k)),
+             rep("rep2_500",length(rep2_500)),
+             rep("rep2_100",length(rep2_100)) )
+
+rep1_len <- c(1:length(rep1_10k),
+             1:length(rep1_5k),
+             1:length(rep1_1k),
+             1:length(rep1_500),
+             1:length(rep1_100) )
+
+rep2_len <- c(1:length(rep2_10k),
+             1:length(rep2_5k),
+             1:length(rep2_1k),
+             1:length(rep2_500),
+             1:length(rep2_100) )
+
+
+df_ratio <- data.frame(value = c(rep1_10k,rep1_5k,rep1_1k,rep1_500,rep1_100,
+                                rep2_10k,rep2_5k,rep2_1k,rep2_500,rep2_100),
+                      name_plot = c(rep1_len,rep2_len ),
+                      name = c(rep1_name,rep2_name ) )
+
+p <- ggplot(df_ratio, aes(x=name_plot, y=value))+geom_bar(stat="identity")
+p <- p + facet_wrap(~ name,ncol = 5, scales="free")
+p
+
+```
+
+
+
+
+
+-------------------------------------------------------------------------------
+                                    Hist of counts (remove ones)
+
+```{r}
+for (i in 1:10){
+  hist(sort(RAR021_df[[i]]$reads[RAR021_df[[i]]$reads>1]),breaks= 10,
+       main=RAR021_df[[i]]$ID[i],
+       xlab="Reads")
+}
+
+```
