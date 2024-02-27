@@ -38,30 +38,128 @@ To replicate the analyses or explore the data:
 ```
 ├── /RAR002
 │      ├── /code
-│          └── RAR002_Fig_S1_B_D.py
+│          └── Fig_S1_B_D.py
 │      ├── /plots
-│          ├── RAR001_Fig_S1_B.pdf
-│          ├── RAR001_Fig_S1_D.pdf
+│          ├── Fig_S1_B.pdf
+│          ├── Fig_S1_D.pdf
 
 ├── /RAR014
 │      ├── /code
-│          └── RAR014_Fig1_A_B_C.Rmd
-│          └── README.md  # Describes the specific analysis, how to run scripts, and expected outputs
-│          └── RAR014_Fig_Sup4_G_H.py
-│          └── README.md  # Describes this specific analysis, usage, and outputs
+│          └── Fig1_B_C_D_E.py
+│          └── Fig2_B_C_D_E.py
+│          └── Fig_Sup4_G_H.py
 │      ├── /plots
-│          ├── RAR014_Fig1_B.pdf
-│          ├── RAR014_Fig1_C.pdf
-│          ├── RAR014_Fig1_D.pdf
-│          ├── RAR014_Fig1_E.pdf
-│          ├── RAR014_Fig2_B.pdf
-│          ├── RAR014_Fig2_C.pdf
-│          ├── RAR014_Fig2_D.pdf
-│          ├── RAR014_Fig2_E.pdf
-│          ├── RAR014_Fig_S2_A.pdf
-│          ├── RAR014_Fig_S2_B.pdf
-│          ├── RAR014_Fig_S2_C.pdf
-│          ├── RAR014_Fig_S2_D.pdf
+│          ├── Fig1_B.pdf
+│          ├── Fig1_C.pdf
+│          ├── Fig1_D.pdf
+│          ├── Fig1_E.pdf
+│          ├── Fig2_B.pdf
+│          ├── Fig2_C.pdf
+│          ├── Fig2_D.pdf
+│          ├── Fig2_E.pdf
+│          ├── Fig_S2_A.pdf
+│          ├── Fig_S2_B.pdf
+│          ├── Fig_S2_C.pdf
+│          ├── Fig_S2_D.pdf
+
+├── /RAR020
+│      ├── /code
+│          └── Fig_4_B_C_D_E.Rmd
+│          └── Fig_S4_A_B_C_D.Rmd
+│      ├── /plots
+│          ├── Fig_4_A.pdf
+│          ├── Fig_4_B.pdf
+│          ├── Fig_4_C.pdf
+│          ├── Fig_4_D.pdf
+│          ├── Fig_S4_A.pdf
+│          ├── Fig_S4_B.pdf
+│          ├── Fig_S4_C.pdf
+│          ├── Fig_S4_D.pdf
+
+├── /RAR021
+│      ├── /code
+│          └── Fig_S3_G_H.py
+│      ├── /plots
+│          ├── Fig_S3_G.pdf
+│          ├── Fig_S3_H.pdf
+
+├── /RAR025
+│      ├── /code
+│          └── Fig3_C_D.py
+│          └── Fig_S3_I_J.py
+│      ├── /plots
+│          ├── Fig3_C.pdf
+│          ├── Fig3_D.pdf
+│          ├── Fig_S3_I.pdf
+│          ├── Fig_S3_J.pdf
+
+├── /RAR035
+│      ├── /code
+│          └── Fig3_A_B.py
+│          └── Fig_S3_A_B_C_D.py
+│      ├── /plots
+│          ├── Fig3_A.pdf
+│          ├── Fig3_B.pdf
+│          ├── Fig_S3_A.pdf
+│          ├── Fig_S3_B.pdf
+│          ├── Fig_S3_C.pdf
+│          ├── Fig_S3_D.pdf
+
+├── /RAR046
+│      ├── /code
+│          └── Fig_S6_F_G.Rmd
+│      ├── /plots
+│          └── Fig_S6_F.pdf
+│          └── Fig_S6_G.pdf
+
+├── /RAR048
+│      ├── /code
+│          └── Fig_S6_D.Rmd
+│      ├── /plots
+│          └── Fig_S6_D.pdf
+
+├── /RAR049
+│      ├── /code
+│          └── Fig_S6_C.Rmd
+│      ├── /plots
+│          └── Fig_S6_C.pdf
+
+├── /RAR050
+│      ├── /code
+│          └── Fig_S6_B.Rmd
+│      ├── /plots
+│          └── Fig_S6_B.pdf
+
+├── /RAR051
+│      ├── /code
+│          └── Fig_6_A_B_C.Rmd
+│          └── Fig_S7_B_C.Rmd
+│      ├── /plots
+│          └── Fig_6_A.pdf
+│          └── Fig_6_B.pdf
+│          └── Fig_6_C.pdf
+│          └── Fig_S7_B.pdf
+│          └── Fig_S7_C.pdf
+
+├── /RAR052
+│      ├── /code
+│          └── Fig_S2_E.Rmd
+│      ├── /plots
+│          └── Fig_S2_E.pdf
+
+├── /RAR053
+│      ├── /code
+│          └── Fig_S2_F.Rmd
+│      ├── /plots
+│          └── Fig_S2_F.pdf
+
+├── /RAR054
+│      ├── /code
+│          └── Fig5_A_B_C.Rmd
+│      ├── /plots
+│          └── Fig_5_A.pdf
+│          └── Fig_5_B.pdf
+│          └── Fig_5_C.pdf
 ```
 
 
