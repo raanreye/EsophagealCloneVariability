@@ -4,21 +4,21 @@
 This repository hosts the computational code, analysis scripts, and detailed documentation for the research paper "Non-genetic differences underlie variability in proliferation among esophageal epithelial clones." Each experiment conducted in our study is assigned a unique identifier (ID), which is used to organize and reference the corresponding data stored in a dedicated Google Drive folder.
 
 ## Experiment IDs
-Each experiment within our study is uniquely identified by an ID with the format `RARXXX`, where `XXX` is a sequential number starting from 001. These IDs are crucial for locating the related datasets on Google Drive and understanding the data processing and analysis steps outlined in the code.
+Each experiment within our study is uniquely identified by an ID with the format `RARXXX`, where `XXX` is a number. These IDs are crucial for locating the related datasets on Google Drive and understanding the data processing and analysis steps outlined in the code.
 
 Example IDs:
-- RAR001
 - RAR002
-- RAR003
+- RAR014
+- RAR020
 - ...
 
 ## Accessing Data
 To access the experimental data associated with each ID:
 1. Navigate to the designated Google Drive folder (link provided below).
-2. Locate the folder corresponding to the experiment ID of interest in the processed data (e.g., RAR001 for the first experiment).
-3. Inside each folder, you will find the raw data, processed data, and any supplementary materials relevant to the experiment.
+2. Locate the folder corresponding to the experiment ID of interest in the processed data (e.g., RAR002 for the first experiment).
+3. Inside each folder, you will find the processed data, and any supplementary materials relevant to the experiment.
 
-[Google Drive Folder Link](#)
+[Google Drive Folder Link](#https://drive.google.com/drive/folders/1l-tDytGtvgdSHJzLyAjeonKCK7rBEag9?usp=drive_link)
 
 ## Repository Structure
 This section details the organization of the repository, including the location of scripts, notebooks, and documentation for each experiment.
