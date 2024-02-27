@@ -61,9 +61,6 @@ To replicate the analyses or explore the data:
 │          ├── RAR014_Fig_S2_B.pdf
 │          ├── RAR014_Fig_S2_C.pdf
 │          ├── RAR014_Fig_S2_D.pdf
-...
-├── /raw
-│
 
 ...
 ## License
